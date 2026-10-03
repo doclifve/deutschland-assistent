@@ -12,6 +12,8 @@ from starlette.concurrency import run_in_threadpool
 from .channels import channels_info
 from .documents import DocumentParseError, parse_document
 from .evidence import EvidenceEngine
+from .answer_generation import generate_grounded_explanation
+from .model_provider import ModelProviderError, build_model_provider
 from .extraction import (
     classify_document,
     extract_appeal_instruction,
@@ -35,7 +37,7 @@ from .schemas import (
     RelativeDeadline,
 )
 
-VERSION = "0.2.2"
+VERSION = "0.2.3"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 MAX_DOCUMENT_PAGES = int(os.getenv("MAX_DOCUMENT_PAGES", "30"))
 DOCUMENT_ENGINE = os.getenv("DOCUMENT_ENGINE", "auto")
@@ -81,6 +83,7 @@ class DocumentStore:
 
 STORE = DocumentStore(DOCUMENT_TTL_SECONDS, MAX_STORED_DOCUMENTS)
 engine = EvidenceEngine()
+model_provider = build_model_provider()
 
 
 def primary_deadline(deadlines: list[Deadline], relative: list[RelativeDeadline]) -> Deadline | None:
@@ -264,8 +267,20 @@ async def ask(req: AskRequest):
         include_case_law=bool(refs or appeal),
     )
 
+    grounded_warning: list[str] = []
+    generated_meaning: str | None = None
+    try:
+        generated_meaning = await generate_grounded_explanation(
+            model_provider,
+            question=req.message,
+            analysis=analysis,
+            bundle=bundle,
+        )
+    except ModelProviderError as exc:
+        grounded_warning.append(f"Sprachmodell-Fallback aktiv: {exc}")
+
     if analysis:
-        meaning = (
+        meaning = generated_meaning or (
             "Das Dokument wurde gelesen und mit amtlichen Quellen abgeglichen. "
             "Fristen, Forderungen und Rechtsbehelfsangaben werden getrennt ausgewiesen."
         )
@@ -284,7 +299,7 @@ async def ask(req: AskRequest):
             steps.append("Prüfen Sie Absender, Anliegen und eventuell verlangte nächste Schritte im Original.")
         certainty = "high" if deadlines or refs or requirements or appeal else "medium"
     elif refs:
-        meaning = (
+        meaning = generated_meaning or (
             "Ich habe ein konkretes Gesetzeszitat erkannt und mit amtlichen Rechtsquellen verknüpft. "
             "Zusätzlich kann passende Rechtsprechung angezeigt werden."
         )
@@ -294,7 +309,7 @@ async def ask(req: AskRequest):
         ]
         certainty = "high"
     else:
-        meaning = (
+        meaning = generated_meaning or (
             "Ich habe amtliche Quellen zu Ihrer Frage gesucht. Die Treffer dienen als nachvollziehbare Grundlage; "
             "eine individuelle Rechtsfolge wird daraus nicht automatisch abgeleitet."
         )
@@ -326,5 +341,5 @@ async def ask(req: AskRequest):
         evidence=bundle.items,
         sources=bundle.items,
         certainty=certainty,
-        warnings=(analysis.warnings if analysis else []) + bundle.warnings,
+        warnings=(analysis.warnings if analysis else []) + bundle.warnings + grounded_warning,
     )

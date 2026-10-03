@@ -17,7 +17,16 @@
 - [x] WhatsApp-Cloud-Adapter
 - [x] temporäre Dokumentablage mit TTL und Lösch-Endpunkt
 
-## v0.2.3 – Behördenbrief-Benchmark
+## v0.2.3 – Behördenbrief-Benchmark + Erklärungsschicht
+
+- [x] austauschbare Model-Provider-Schnittstelle
+- [x] optionaler Germany-hosted OpenAI-kompatibler Provider
+- [x] deterministischer Fallback ohne LLM
+- [x] minimierter Evidence Context statt vollständigem Brief
+- [x] Claims müssen bekannte Evidence-IDs referenzieren
+- [x] Guard gegen unbelegte neue Datums-/Paragraphenangaben
+- [x] Prompt-Injection-Regel für Dokument- und Quelleninhalte
+- [ ] Provider-Vertrags-/Datenschutz-Checkliste für Produktion
 
 - [ ] Ground-Truth-Schema
 - [ ] 200–500 synthetische/anonymisierte Behördenbriefe
