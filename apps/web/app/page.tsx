@@ -1,10 +1,15 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import AppointmentView from "./components/AppointmentView";
+import ChatView from "./components/ChatView";
+import FormView from "./components/FormView";
+import LetterView from "./components/LetterView";
+import { Action, ChatResponse, LetterKind, postJson } from "./lib/api";
 
 const API = process.env.NEXT_PUBLIC_CIVIC_API_URL || "http://localhost:8000";
 
-type View = "home" | "loading" | "result";
+type View = "home" | "loading" | "result" | "chat" | "letter" | "appointment" | "form";
 
 type WhatsAppChannel = { enabled: boolean; display_number: string | null; link: string | null; greeting: string };
 
@@ -64,6 +69,11 @@ export default function Home() {
   const howRef = useRef<HTMLElement>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppChannel | null>(null);
   const [qr, setQr] = useState<string | null>(null);
+  const [actions, setActions] = useState<Action[]>([]);
+  const [letterKind, setLetterKind] = useState<LetterKind>("widerspruch");
+  const [concern, setConcern] = useState<string | undefined>(undefined);
+  const [chatQuestion, setChatQuestion] = useState<string | undefined>(undefined);
+  const [chatKey, setChatKey] = useState(0);
 
   // Public channel details come from the API; the section only shows when a number is configured.
   useEffect(() => {
@@ -83,16 +93,6 @@ export default function Home() {
       cancelled = true;
     };
   }, []);
-
-  async function askApi(message: string, documentId?: string) {
-    const r = await fetch(API + "/v1/ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, language: "de", document_id: documentId }),
-    });
-    if (!r.ok) throw new Error(r.status === 404 ? "Das Dokument ist abgelaufen. Bitte erneut hochladen." : await r.text());
-    return r.json();
-  }
 
   function fail(e: unknown) {
     const msg = e instanceof TypeError
@@ -115,7 +115,12 @@ export default function Home() {
       const d = await r.json();
       setDoc(d);
       setQuestion(null);
-      setAnswer(await askApi("Was bedeutet das und was muss ich tun?", d.document_id));
+      const first = await postJson<ChatResponse>("/v1/chat", {
+        document_id: d.document_id,
+        messages: [{ role: "user", content: "Was bedeutet das und was muss ich tun?" }],
+      });
+      setAnswer(first.answer);
+      setActions(first.actions);
       setView("result");
       window.scrollTo({ top: 0 });
     } catch (e) {
@@ -125,28 +130,48 @@ export default function Home() {
     }
   }
 
-  async function ask(e: FormEvent) {
+  function ask(e: FormEvent) {
     e.preventDefault();
     const message = q.trim();
     if (!message) return;
+    if (view !== "result") setDoc(null);
+    openChat(message);
+    setQ("");
+  }
+
+  function openChat(initial?: string) {
+    setChatQuestion(initial);
+    setChatKey((k) => k + 1);
+    go("chat");
+  }
+
+  function go(next: View) {
     setError(null);
-    setView("loading");
-    try {
-      const docId = view === "result" && doc ? doc.document_id : undefined;
-      if (!docId) setDoc(null);
-      setAnswer(await askApi(message, docId));
-      setQuestion(message);
-      setQ("");
-      setView("result");
-      window.scrollTo({ top: 0 });
-    } catch (err) {
-      fail(err);
+    setView(next);
+    window.scrollTo({ top: 0 });
+  }
+
+  // Where tools return to: the letter result if there is one, otherwise the start page.
+  function back() {
+    go(answer && doc ? "result" : "home");
+  }
+
+  function runAction(a: Action) {
+    if (a.kind === "letter") {
+      setLetterKind((a.params.letter as LetterKind) || "widerspruch");
+      go("letter");
+    } else if (a.kind === "appointment") {
+      setConcern(a.params.concern);
+      go("appointment");
+    } else {
+      go("form");
     }
   }
 
   function reset() {
     setView("home");
     setAnswer(null);
+    setActions([]);
     setDoc(null);
     setQuestion(null);
     setError(null);
@@ -164,6 +189,22 @@ export default function Home() {
       aria-hidden="true"
     />
   );
+
+  if (view === "chat") {
+    return (
+      <ChatView
+        key={chatKey}
+        documentId={doc?.document_id}
+        documentLabel={doc ? DOC_TYPES[doc.document_type] || "Ihr Schreiben" : undefined}
+        initialQuestion={chatQuestion}
+        onBack={back}
+        onAction={runAction}
+      />
+    );
+  }
+  if (view === "letter") return <LetterView kind={letterKind} documentId={doc?.document_id} onBack={back} />;
+  if (view === "appointment") return <AppointmentView concern={concern} onBack={back} />;
+  if (view === "form") return <FormView documentId={doc?.document_id} onBack={back} />;
 
   if (view === "loading") {
     return (
@@ -202,6 +243,13 @@ export default function Home() {
             {subtitle && <div className="result-sub">{subtitle}</div>}
             <h1>{title}</h1>
           </header>
+
+          <div className="action-row result-actions">
+            {actions.map((a, i) => (
+              <button key={i} type="button" className="action" onClick={() => runAction(a)}>{a.label} ›</button>
+            ))}
+            <button type="button" className="action" onClick={() => openChat()}>Fragen zu diesem Brief ›</button>
+          </div>
 
           {deadline && (
             <section className="card">
@@ -395,6 +443,38 @@ export default function Home() {
             <p>Open Source. Werbefrei. Ohne Konto.</p>
           </div>
         </div>
+      </section>
+
+      <section className="section section-grey tools">
+        <p className="section-eyebrow">Nicht nur erklären.</p>
+        <h2 className="section-title">Der Assistent bereitet vor.<br /><span className="muted-title">Sie entscheiden.</span></h2>
+        <div className="tool-cards">
+          <button type="button" className="tool-card" onClick={() => openChat()}>
+            <span className="dot" style={{ background: "#000000" }} />
+            <h3>Fragen.</h3>
+            <p>Im Gespräch nachfragen. Jede Antwort mit amtlicher Quelle.</p>
+            <span className="tool-link">Chat öffnen ›</span>
+          </button>
+          <button type="button" className="tool-card" onClick={() => { setLetterKind("widerspruch"); go("letter"); }}>
+            <span className="dot" style={{ background: "#DD0000" }} />
+            <h3>Antworten.</h3>
+            <p>Widerspruch, mehr Zeit oder Unterlagen nachreichen. Als fertiger Brief zum Unterschreiben.</p>
+            <span className="tool-link">Brief entwerfen ›</span>
+          </button>
+          <button type="button" className="tool-card" onClick={() => { setConcern(undefined); go("appointment"); }}>
+            <span className="dot" style={{ background: "#FFCC00" }} />
+            <h3>Termin.</h3>
+            <p>Richtige Stelle, offizielle Buchungsseite und was Sie mitbringen müssen.</p>
+            <span className="tool-link">Termin vorbereiten ›</span>
+          </button>
+          <button type="button" className="tool-card" onClick={() => go("form")}>
+            <span className="dot" style={{ background: "#000000" }} />
+            <h3>Ausfüllen.</h3>
+            <p>PDF-Formulare mit Ihren Angaben vorausfüllen. Sie prüfen, dann herunterladen.</p>
+            <span className="tool-link">Formular ausfüllen ›</span>
+          </button>
+        </div>
+        <p className="fine">Abgeschickt, gebucht oder unterschrieben wird nie automatisch.</p>
       </section>
 
       {whatsapp?.link && (
