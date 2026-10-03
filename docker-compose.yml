@@ -1,6 +1,10 @@
 services:
   civic-core:
     build: ./services/civic-core
+    environment:
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      DOCUMENT_TTL_SECONDS: ${DOCUMENT_TTL_SECONDS:-3600}
+      MAX_STORED_DOCUMENTS: ${MAX_STORED_DOCUMENTS:-500}
     ports: ["8000:8000"]
   web:
     build:
@@ -18,6 +22,8 @@ services:
       CIVIC_CORE_URL: http://civic-core:8000
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-change-me}
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      APP_ENV: ${APP_ENV:-development}
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
       WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v22.0}
     ports: ["8010:8010"]

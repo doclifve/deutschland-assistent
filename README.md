@@ -17,6 +17,8 @@ Deutschland Assistent is an open-source, evidence-first civic assistant. It is d
 - Analyze documents without any LLM or API key.
 - Optionally use **Docling** for OCR and layout-aware parsing of scans/images.
 - Extract deadlines, legal references, LeiKa identifiers and authority hints deterministically.
+- Recognise relative deadlines from *Rechtsbehelfsbelehrungen* ("innerhalb eines Monats nach Bekanntgabe") and estimate the end date conservatively from the letter date (4-day postal fiction since 1 Jan 2025, §§ 187 f. BGB, weekend shift). Estimates are always flagged `confidence: low` with their calculation basis.
+- Hold uploaded documents only in memory, with an expiry (`DOCUMENT_TTL_SECONDS`, default 1 h), a size cap and an explicit `DELETE /v1/documents/{id}`.
 - Resolve explicit law citations through **Gesetze im Internet**.
 - Search current federal legislation through the official **NeuRIS** API, with a direct-law fallback because NeuRIS is still in test phase and incomplete.
 - Match common benefits/services against an auditable registry of official federal sources.
@@ -127,7 +129,19 @@ curl -X POST http://localhost:8000/v1/documents \
 - `POST /v1/evidence/search` — search the official-source layer directly.
 - `GET /v1/sources` — inspect source roles/status.
 - `POST /v1/documents` — parse a citizen document and extract deterministic facts.
+- `DELETE /v1/documents/{id}` — remove an uploaded document before it expires.
 - `POST /v1/ask` — combine document facts with official evidence.
+
+## Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API |
+| `DOCUMENT_ENGINE` | `auto` | `basic`, `docling` or `auto` |
+| `MAX_UPLOAD_BYTES` | `15728640` | Upload size limit |
+| `DOCUMENT_TTL_SECONDS` | `3600` | How long an uploaded document stays in memory |
+| `MAX_STORED_DOCUMENTS` | `500` | Upper bound for documents held at once |
+| `WHATSAPP_APP_SECRET` | – | Verifies Meta's `X-Hub-Signature-256`; required when `APP_ENV=production` |
 
 ## OpenClaw
 
@@ -150,15 +164,18 @@ For current OpenClaw channel setup, see the upstream OpenClaw documentation. Wha
 ## Repository layout
 
 ```text
-apps/web/                         Minimal citizen-facing web UI
-services/civic-core/             FastAPI civic core
-channels/openclaw/               Installable OpenClaw skill
-channels/whatsapp-cloud/         Official WhatsApp Cloud API adapter scaffold
-connectors/                      Source adapters
-skills/                          Domain workflows/specifications
-evals/                           Safety and quality tests
-docs/                            Architecture, security, source policy
+apps/web/                                   Minimal citizen-facing web UI
+services/civic-core/                        FastAPI civic core
+  deutschland_assistent/extraction.py       Deterministic extraction (references, deadlines, LeiKa)
+  deutschland_assistent/evidence.py         Official-source Evidence Engine (Gesetze im Internet, NeuRIS, Bundesportal)
+  deutschland_assistent/documents.py        Document parsing (pypdf, optional Docling)
+  deutschland_assistent/schemas.py          Answer and evidence schema
+channels/openclaw/                          Installable OpenClaw skill
+channels/whatsapp-cloud/                    Official WhatsApp Cloud API adapter scaffold
+docs/                                       Architecture, security, source policy
 ```
+
+Planned (not yet in the repository): `skills/` for domain workflows, `evals/` for safety and quality tests.
 
 ## Data sources
 
@@ -192,7 +209,7 @@ See:
 make test
 ```
 
-The deterministic extraction tests cover deadlines and legal references. Add an eval before adding a new high-impact workflow.
+The deterministic extraction tests cover explicit and relative deadlines, document dates and legal references. Add an eval before adding a new high-impact workflow.
 
 ## Status
 
