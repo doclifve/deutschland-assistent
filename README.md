@@ -10,13 +10,17 @@ Deutschland Assistent is an open-source, evidence-first civic assistant. It is d
 
 > **Core principle:** The model is not the source of truth. Official sources and the user's document are.
 
-## What v0.1 can do
+## What v0.2 can do
 
 - Upload text and PDF documents.
 - Extract text, dates, deadlines and common legal references.
 - Analyze documents without any LLM or API key.
-- Optionally use **Docling** for richer document parsing and OCR.
-- Return structured, machine-readable evidence with every important claim.
+- Optionally use **Docling** for OCR and layout-aware parsing of scans/images.
+- Extract deadlines, legal references, LeiKa identifiers and authority hints deterministically.
+- Resolve explicit law citations through **Gesetze im Internet**.
+- Search current federal legislation through the official **NeuRIS** API, with a direct-law fallback because NeuRIS is still in test phase and incomplete.
+- Match common benefits/services against an auditable registry of official federal sources.
+- Return structured, ranked evidence with every important source.
 - Ask questions through a simple web interface.
 - Provide an OpenClaw skill for WhatsApp/Telegram/Signal-style access.
 - Provide a separate WhatsApp Cloud API adapter scaffold for production deployments.
@@ -118,6 +122,13 @@ curl -X POST http://localhost:8000/v1/documents \
   -F 'file=@bescheid.pdf'
 ```
 
+## Evidence Engine API
+
+- `POST /v1/evidence/search` — search the official-source layer directly.
+- `GET /v1/sources` — inspect source roles/status.
+- `POST /v1/documents` — parse a citizen document and extract deterministic facts.
+- `POST /v1/ask` — combine document facts with official evidence.
+
 ## OpenClaw
 
 The repository includes an installable OpenClaw skill under `channels/openclaw/deutschland-assistent/`.
@@ -185,7 +196,7 @@ The deterministic extraction tests cover deadlines and legal references. Add an 
 
 ## Status
 
-**v0.1 scaffold / early development.** The APIs and schemas will change.
+**v0.2 early alpha.** The Evidence Engine is implemented; APIs and schemas may still change.
 
 ## License
 

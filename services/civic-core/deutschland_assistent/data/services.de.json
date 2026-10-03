@@ -1,0 +1,122 @@
+[
+  {
+    "title": "Grundsicherung für Arbeitsuchende / Grundsicherungsgeld",
+    "summary": "Offizielle Informationen der Bundesagentur für Arbeit zur Grundsicherung für Arbeitsuchende.",
+    "url": "https://www.arbeitsagentur.de/grundsicherung",
+    "authority": "Bundesagentur für Arbeit",
+    "keywords": [
+      "grundsicherung",
+      "grundsicherungsgeld",
+      "jobcenter",
+      "arbeitslos",
+      "sgb ii",
+      "lebensunterhalt"
+    ]
+  },
+  {
+    "title": "Arbeitslosengeld",
+    "summary": "Offizielle Informationen zu Voraussetzungen, Antrag und Arbeitslosengeld.",
+    "url": "https://www.arbeitsagentur.de/arbeitslos-arbeit-finden/arbeitslosengeld",
+    "authority": "Bundesagentur für Arbeit",
+    "keywords": [
+      "arbeitslosengeld",
+      "arbeitslos",
+      "alg",
+      "sgb iii",
+      "agentur für arbeit"
+    ]
+  },
+  {
+    "title": "Kindergeld",
+    "summary": "Offizielle Informationen der Familienkasse zum Kindergeld.",
+    "url": "https://www.arbeitsagentur.de/familie-und-kinder/kindergeld",
+    "authority": "Familienkasse der Bundesagentur für Arbeit",
+    "keywords": [
+      "kindergeld",
+      "familienkasse",
+      "kind",
+      "eltern",
+      "familie"
+    ]
+  },
+  {
+    "title": "Kinderzuschlag",
+    "summary": "Offizielle Informationen der Familienkasse zum Kinderzuschlag.",
+    "url": "https://www.arbeitsagentur.de/familie-und-kinder/kinderzuschlag-verstehen",
+    "authority": "Familienkasse der Bundesagentur für Arbeit",
+    "keywords": [
+      "kinderzuschlag",
+      "kiz",
+      "familienkasse",
+      "geringes einkommen",
+      "kind"
+    ]
+  },
+  {
+    "title": "Elterngeld",
+    "summary": "Offizielle Informationen des Familienportals zu Elterngeld, Varianten und Antrag.",
+    "url": "https://familienportal.de/familienportal/familienleistungen/elterngeld",
+    "authority": "Familienportal des Bundes",
+    "keywords": [
+      "elterngeld",
+      "elternzeit",
+      "geburt",
+      "baby",
+      "familie"
+    ]
+  },
+  {
+    "title": "BAföG",
+    "summary": "Offizielle Informationen zur Ausbildungsförderung nach dem BAföG.",
+    "url": "https://www.bafoeg.de/",
+    "authority": "Bundesministerium",
+    "keywords": [
+      "bafög",
+      "bafoeg",
+      "studium",
+      "student",
+      "ausbildungsförderung",
+      "schule"
+    ]
+  },
+  {
+    "title": "Rente",
+    "summary": "Offizielle Informationen zu Rentenarten, Voraussetzungen und Antrag.",
+    "url": "https://www.deutsche-rentenversicherung.de/DRV/DE/Rente/rente_node.html",
+    "authority": "Deutsche Rentenversicherung",
+    "keywords": [
+      "rente",
+      "altersrente",
+      "erwerbsminderung",
+      "rentner",
+      "rentenversicherung"
+    ]
+  },
+  {
+    "title": "Pflege und Pflegeleistungen",
+    "summary": "Offizieller Online-Ratgeber des Bundesgesundheitsministeriums zu Pflege und Pflegeleistungen.",
+    "url": "https://www.bundesgesundheitsministerium.de/themen/pflege/online-ratgeber-pflege.html",
+    "authority": "Bundesministerium für Gesundheit",
+    "keywords": [
+      "pflege",
+      "pflegegrad",
+      "pflegegeld",
+      "pflegekasse",
+      "pflegedienst",
+      "angehörige"
+    ]
+  },
+  {
+    "title": "Einmalige Leistungen zur Sicherung des Lebensunterhalts",
+    "summary": "Bundesportal: einmalige Leistungen für notwendige Anschaffungen in besonderen Lebenssituationen.",
+    "url": "https://verwaltung.bund.de/leistungsverzeichnis/DE/leistung/99107066017000",
+    "authority": "Bundesportal / BMAS",
+    "keywords": [
+      "einmalige leistungen",
+      "sonderbedarf",
+      "grundsicherung",
+      "erstausstattung",
+      "jobcenter"
+    ]
+  }
+]

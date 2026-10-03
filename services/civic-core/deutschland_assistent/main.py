@@ -1,162 +1,66 @@
 from __future__ import annotations
-
-import io
-import re
-import uuid
-from datetime import date
-from pathlib import Path
-from typing import Literal
-
-from fastapi import FastAPI, File, HTTPException, UploadFile
+import os,uuid
+from fastapi import FastAPI,File,HTTPException,UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from pypdf import PdfReader
+from .documents import DocumentParseError,parse_document
+from .evidence import EvidenceEngine
+from .extraction import classify_document,extract_authority_hint,extract_deadlines,extract_leika_ids,extract_legal_references,extract_requested_items
+from .schemas import AskRequest,CivicAnswer,DocumentAnalysis,EvidenceBundle,EvidenceSearchRequest
 
-VERSION = "0.1.0"
-LAW_SLUGS = {
-    "BGB":"bgb","GG":"gg","AO":"ao_1977","STGB":"stgb","ZPO":"zpo","VWGO":"vwgo",
-    "SGB I":"sgb_1","SGB II":"sgb_2","SGB III":"sgb_3","SGB IV":"sgb_4","SGB V":"sgb_5",
-    "SGB VI":"sgb_6","SGB VII":"sgb_7","SGB VIII":"sgb_8","SGB IX":"sgb_9_2018","SGB X":"sgb_10",
-    "SGB XI":"sgb_11","SGB XII":"sgb_12"
-}
-LEGAL_REF = re.compile(r"(?P<section>§{1,2}\s*\d+[a-zA-Z]?(?:\s*(?:Abs\.|Absatz)\s*\d+)?)\s+(?P<law>(?:SGB\s*[IVXLC]+|BGB|GG|AO|VwVfG|StGB|ZPO|VwGO|SGG|EStG))\b", re.I)
-DATE_RE = re.compile(r"\b(?P<d>0?[1-9]|[12]\d|3[01])\.(?P<m>0?[1-9]|1[0-2])\.(?P<y>20\d{2})\b")
-DEADLINE_HINT = re.compile(r"\b(frist|bis zum|spätestens|innerhalb|widerspruch|einzureichen|vorzulegen)\b", re.I)
-
-class Evidence(BaseModel):
-    title: str
-    url: str | None = None
-    locator: str | None = None
-    kind: str = "official_source"
-
-class Deadline(BaseModel):
-    date: date
-    label: str = "Mögliche Frist"
-    confidence: Literal["high","medium","low"] = "medium"
-
-class LegalReference(BaseModel):
-    raw: str
-    section: str
-    law: str
-    source_url: str | None = None
-
-class DocumentAnalysis(BaseModel):
-    document_id: str
-    filename: str
-    document_type: str
-    text_preview: str
-    deadlines: list[Deadline] = []
-    legal_references: list[LegalReference] = []
-    warnings: list[str] = []
-
-class AskRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=12000)
-    language: str = "de"
-    document_id: str | None = None
-
-class CivicAnswer(BaseModel):
-    what_is_this: str | None = None
-    what_does_it_mean: str
-    what_should_i_do: list[str] = []
-    deadline: Deadline | None = None
-    legal_references: list[LegalReference] = []
-    sources: list[Evidence] = []
-    certainty: Literal["high","medium","low"] = "medium"
-    disclaimer: str = "Informationshilfe, keine individuelle Rechtsberatung oder Behördenentscheidung."
-
-STORE: dict[str, tuple[str, DocumentAnalysis]] = {}
-
-def law_url(law: str, section: str) -> str:
-    key = re.sub(r"\s+"," ",law.upper()).strip()
-    slug = LAW_SLUGS.get(key)
-    if not slug:
-        return "https://www.gesetze-im-internet.de/"
-    m = re.search(r"\d+[a-zA-Z]?", section)
-    return f"https://www.gesetze-im-internet.de/{slug}/__{m.group(0).lower()}.html" if m else f"https://www.gesetze-im-internet.de/{slug}/"
-
-def extract_refs(text: str) -> list[LegalReference]:
-    out=[]
-    for m in LEGAL_REF.finditer(text):
-        section=re.sub(r"\s+"," ",m.group("section")).strip()
-        law=re.sub(r"\s+"," ",m.group("law").upper()).strip()
-        out.append(LegalReference(raw=m.group(0), section=section, law=law, source_url=law_url(law, section)))
-    return out
-
-def extract_deadlines(text: str) -> list[Deadline]:
-    out=[]
-    for m in DATE_RE.finditer(text):
-        context=text[max(0,m.start()-90):min(len(text),m.end()+90)]
-        if not DEADLINE_HINT.search(context):
-            continue
-        try:
-            out.append(Deadline(date=date(int(m.group("y")),int(m.group("m")),int(m.group("d"))), confidence="high"))
-        except ValueError:
-            pass
-    return out
-
-def read_document(data: bytes, filename: str) -> str:
-    suffix=Path(filename).suffix.lower()
-    if suffix in {".txt",".md",".csv"}:
-        return data.decode("utf-8", errors="replace")
-    if suffix==".pdf":
-        reader=PdfReader(io.BytesIO(data))
-        return "\n\n".join((p.extract_text() or "") for p in reader.pages)
-    raise HTTPException(status_code=415, detail="v0.1 unterstützt direkt PDF/Text. Fotos/Scans werden über die optionale Docling/OCR-Schicht ergänzt.")
-
-def classify(text: str) -> str:
-    t=text.lower()
-    if any(x in t for x in ["bescheid","rechtsbehelfsbelehrung","widerspruchsbelehrung"]): return "authority_decision"
-    if "rechnung" in t: return "invoice"
-    if any(x in t for x in ["vertrag","kündigung"]): return "contract_or_notice"
-    return "unknown"
-
+VERSION="0.2.0";MAX_UPLOAD_BYTES=int(os.getenv("MAX_UPLOAD_BYTES",str(15*1024*1024)));DOCUMENT_ENGINE=os.getenv("DOCUMENT_ENGINE","auto")
+STORE:dict[str,tuple[str,DocumentAnalysis]]={}
+engine=EvidenceEngine()
 app=FastAPI(title="Deutschland Assistent API",version=VERSION,description="Evidence-first civic assistance core for Germany.")
-app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_credentials=False,allow_methods=["GET","POST"],allow_headers=["*"])
+app.add_middleware(CORSMiddleware,allow_origins=os.getenv("CORS_ORIGINS","*").split(","),allow_credentials=False,allow_methods=["GET","POST"],allow_headers=["*"])
 
 @app.get("/health")
-def health():
-    return {"status":"ok","service":"deutschland-assistent-core","version":VERSION}
+def health():return {"status":"ok","service":"deutschland-assistent-core","version":VERSION}
+
+@app.get("/v1/sources")
+def sources():
+    return {"sources":[
+      {"id":"gesetze-im-internet","authority":"BMJ/BfJ","role":"exact legal-reference fallback","status":"authoritative"},
+      {"id":"neuris","authority":"BMJ/BfJ / DigitalService","role":"federal legislation search","status":"official-testphase-incomplete"},
+      {"id":"bundesportal","authority":"Bundesportal and federal agencies","role":"public-service and benefit guidance","status":"authoritative-curated"},
+      {"id":"docling","authority":"document engine","role":"OCR/layout parsing when installed","status":"optional"}]}
 
 @app.post("/v1/documents",response_model=DocumentAnalysis)
-async def documents(file: UploadFile=File(...)):
-    data=await file.read(15*1024*1024+1)
-    if not data: raise HTTPException(400,"Leere Datei.")
-    if len(data)>15*1024*1024: raise HTTPException(413,"Datei ist zu groß.")
-    text=read_document(data,file.filename or "document")
-    doc_id="doc_"+uuid.uuid4().hex[:16]
-    analysis=DocumentAnalysis(
-        document_id=doc_id, filename=file.filename or "document", document_type=classify(text),
-        text_preview=" ".join(text.split())[:2500], deadlines=extract_deadlines(text),
-        legal_references=extract_refs(text),
-        warnings=[] if text.strip() else ["Kein Text erkannt; OCR/Docling aktivieren."]
-    )
-    STORE[doc_id]=(text,analysis)
-    return analysis
+async def documents(file:UploadFile=File(...)):
+    data=await file.read(MAX_UPLOAD_BYTES+1)
+    if not data:raise HTTPException(400,"Leere Datei.")
+    if len(data)>MAX_UPLOAD_BYTES:raise HTTPException(413,"Datei ist zu groß.")
+    filename=file.filename or "document"
+    try:parsed=parse_document(data,filename,mode=DOCUMENT_ENGINE)
+    except DocumentParseError as exc:raise HTTPException(415,str(exc)) from exc
+    text=parsed.text;doc_id="doc_"+uuid.uuid4().hex[:16]
+    analysis=DocumentAnalysis(document_id=doc_id,filename=filename,document_type=classify_document(text),parsing_engine=parsed.engine,text_preview=" ".join(text.split())[:3500],deadlines=extract_deadlines(text),legal_references=extract_legal_references(text),leika_ids=extract_leika_ids(text),authority_hint=extract_authority_hint(text),requested_items=extract_requested_items(text),warnings=parsed.warnings+([] if text.strip() else ["Kein verwertbarer Text erkannt."]))
+    STORE[doc_id]=(text,analysis);return analysis
+
+@app.post("/v1/evidence/search",response_model=EvidenceBundle)
+async def evidence_search(req:EvidenceSearchRequest):
+    return await engine.collect(req.query,extract_legal_references(req.query),extract_leika_ids(req.query),req.limit)
 
 @app.post("/v1/ask",response_model=CivicAnswer)
-def ask(req: AskRequest):
-    text=req.message
-    analysis=None
+async def ask(req:AskRequest):
+    text=req.message;analysis=None
     if req.document_id:
         stored=STORE.get(req.document_id)
-        if not stored: raise HTTPException(404,"Dokument nicht gefunden.")
-        text=stored[0]
-        analysis=stored[1]
-    refs=analysis.legal_references if analysis else extract_refs(text)
+        if not stored:raise HTTPException(404,"Dokument nicht gefunden.")
+        text,analysis=stored
+    refs=analysis.legal_references if analysis else extract_legal_references(text)
     deadlines=analysis.deadlines if analysis else extract_deadlines(text)
-    sources=[Evidence(title=r.raw,url=r.source_url,locator=r.section,kind="official_law") for r in refs]
+    leika=analysis.leika_ids if analysis else extract_leika_ids(text)
+    query=req.message if not analysis else " ".join(x for x in [analysis.authority_hint or ""," ".join(r.raw for r in refs),analysis.document_type.replace("_"," "),req.message] if x)
+    bundle=await engine.collect(query[:1800],refs,leika,10)
     if analysis:
-        meaning="Das Dokument wurde strukturiert gelesen. Explizite Fristen und Gesetzeszitate werden unten getrennt ausgewiesen."
-        steps=["Prüfen Sie die erkannte Frist und die verlangten Unterlagen im Originaldokument.","Öffnen Sie die offiziellen Quellen zu erkannten Gesetzeszitaten."]
+        meaning="Das Dokument wurde gelesen und mit amtlichen Quellen abgeglichen. Explizite Fristen und Gesetzeszitate werden getrennt ausgewiesen.";steps=[]
+        if deadlines:steps.append("Prüfen Sie die erkannte Frist im Originaldokument.")
+        if analysis.requested_items:steps.append("Stellen Sie die im Dokument verlangten Unterlagen zusammen.")
+        if refs:steps.append("Vergleichen Sie die genannten Rechtsgrundlagen mit den verlinkten amtlichen Fassungen.")
+        if not steps:steps.append("Prüfen Sie Absender, Anliegen und eventuell verlangte nächste Schritte im Original.")
+        certainty="high" if deadlines or refs or analysis.requested_items else "medium"
     elif refs:
-        meaning="Ich habe eine konkrete deutsche Rechtsnorm erkannt und verlinke auf die offizielle Fassung."
-        steps=["Lesen Sie die verlinkte Norm im Original.","Für eine Einzelfallbewertung sind zusätzliche Tatsachen erforderlich."]
+        meaning="Ich habe ein konkretes Gesetzeszitat erkannt und mit amtlichen Rechtsquellen verknüpft. Für die Anwendung auf einen Einzelfall können weitere Tatsachen erforderlich sein.";steps=["Öffnen Sie die amtliche Fassung der Norm.","Beschreiben Sie den konkreten Sachverhalt, wenn Sie die Bedeutung für Ihren Fall einordnen möchten."];certainty="high"
     else:
-        meaning="v0.1 beantwortet allgemeine Fragen noch deterministisch und verweist bei Rechtsfragen auf offizielle Quellen."
-        steps=["Formulieren Sie die konkrete Behörde, Leistung oder Rechtsnorm.","Laden Sie bei einem Schreiben das Dokument hoch."]
-    return CivicAnswer(
-        what_is_this=("Behördliches/administratives Dokument" if analysis else None),
-        what_does_it_mean=meaning, what_should_i_do=steps,
-        deadline=deadlines[0] if deadlines else None, legal_references=refs, sources=sources,
-        certainty="high" if (refs or deadlines) else "medium"
-    )
+        meaning="Ich habe amtliche Quellen zu Ihrer Frage gesucht. Die Treffer dienen als nachvollziehbare Grundlage; eine individuelle Rechtsfolge wird daraus nicht automatisch abgeleitet.";steps=["Öffnen Sie die relevantesten amtlichen Quellen.","Laden Sie ein Schreiben hoch, wenn sich die Frage auf einen konkreten Bescheid oder Brief bezieht."];certainty="medium" if bundle.items else "low"
+    return CivicAnswer(what_is_this=(f"{analysis.document_type.replace('_',' ')} · {analysis.authority_hint}" if analysis and analysis.authority_hint else ("Behördliches/administratives Dokument" if analysis else None)),what_does_it_mean=meaning,what_should_i_do=steps,deadline=deadlines[0] if deadlines else None,documents_needed=analysis.requested_items if analysis else [],legal_references=refs,evidence=bundle.items,sources=bundle.items,certainty=certainty,warnings=(analysis.warnings if analysis else [])+bundle.warnings)
