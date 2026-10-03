@@ -9,11 +9,14 @@ from fastapi import FastAPI, File, Header, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
+from .appointments import prepare_appointment
 from .channels import channels_info
 from .actions import ActionStore, fill_pdf_form, inspect_pdf_form, new_action
 from .agent_planning import map_profile_to_form
 from .chat import chat as chat_with_assistant
 from .documents import DocumentParseError, parse_document
+from .forms import FormError, FormStore, SuggestContext, fill_form, read_form, suggest_by_label, suggest_by_model
+from .letters import draft_letter, extract_reference
 from .evidence import EvidenceEngine
 from .answer_generation import generate_grounded_explanation
 from .model_provider import ModelProviderError, build_model_provider
@@ -31,12 +34,20 @@ from .extraction import (
 )
 from .schemas import (
     ActionCompleteRequest,
+    AppointmentPlan,
+    AppointmentRequest,
     ActionConfirmRequest,
     ActionPreview,
     AppointmentPrepareRequest,
     AskRequest,
     ChatRequest,
     ChatResponse,
+    FormFillRequest,
+    FormInfo,
+    FormSuggestions,
+    FormSuggestRequest,
+    LetterDraft,
+    LetterRequest,
     FormAgentPrepareRequest,
     FormFillPrepareRequest,
     FormInspection,
@@ -100,6 +111,7 @@ STORE = DocumentStore(DOCUMENT_TTL_SECONDS, MAX_STORED_DOCUMENTS)
 engine = EvidenceEngine()
 model_provider = build_model_provider()
 ACTION_STORE = ActionStore(ttl_seconds=ACTION_TTL_SECONDS)
+FORMS = FormStore(DOCUMENT_TTL_SECONDS, MAX_STORED_DOCUMENTS)
 
 
 def primary_deadline(deadlines: list[Deadline], relative: list[RelativeDeadline]) -> Deadline | None:
@@ -262,6 +274,111 @@ async def chat_endpoint(req: ChatRequest):
         language=req.language,
         analysis=analysis,
     )
+
+
+
+@app.post("/v1/appointments/prepare", response_model=AppointmentPlan)
+def appointments_prepare(req: AppointmentRequest):
+    """Find official routes, likely documents and next steps. This endpoint never books."""
+    return prepare_appointment(req.concern, req.postal_code)
+
+
+@app.post("/v1/letters/draft", response_model=LetterDraft)
+def letters_draft(req: LetterRequest):
+    """Create a deterministic draft. The person reviews, signs and sends it."""
+    analysis = None
+    text = None
+    if req.document_id:
+        stored = STORE.get(req.document_id)
+        if not stored:
+            raise HTTPException(404, "Dokument nicht gefunden oder bereits gelöscht.")
+        text, analysis = stored
+    return draft_letter(req, analysis=analysis, document_text=text)
+
+
+@app.post("/v1/forms", response_model=FormInfo)
+async def forms_upload(file: UploadFile = File(...)):
+    data = await file.read(MAX_AGENT_FORM_BYTES + 1)
+    if not data:
+        raise HTTPException(400, "Leere Datei.")
+    if len(data) > MAX_AGENT_FORM_BYTES:
+        raise HTTPException(413, "Formular ist zu groß.")
+    form_id = "form_" + uuid.uuid4().hex[:16]
+    try:
+        info = await run_in_threadpool(read_form, data, form_id, file.filename or "formular.pdf")
+    except FormError as exc:
+        raise HTTPException(415, str(exc)) from exc
+    FORMS.put(form_id, data, info)
+    return info
+
+
+def _stored_form(form_id: str):
+    stored = FORMS.get(form_id)
+    if not stored:
+        raise HTTPException(404, "Formular nicht gefunden oder bereits gelöscht.")
+    return stored
+
+
+@app.post("/v1/forms/{form_id}/suggest", response_model=FormSuggestions)
+async def forms_suggest(form_id: str, req: FormSuggestRequest):
+    """Suggest field values only from user data / document facts; never invent personal data."""
+    from .forms import clean_profile
+
+    _, info = _stored_form(form_id)
+    stored = STORE.get(req.document_id) if req.document_id else None
+    if req.document_id and not stored:
+        raise HTTPException(404, "Dokument nicht gefunden oder bereits gelöscht.")
+    ctx = SuggestContext(
+        profile=clean_profile(req.profile),
+        reference=extract_reference(stored[0]) if stored else None,
+    )
+    suggestions, unmatched = suggest_by_label(info.fields, ctx)
+    notes: list[str] = []
+    if req.use_model_for_mapping and unmatched:
+        try:
+            suggestions += await suggest_by_model(model_provider, unmatched, ctx)
+        except ModelProviderError as exc:
+            notes.append(f"Zuordnung per Sprachmodell nicht verfügbar: {exc}")
+    filled = {s.field_id for s in suggestions}
+    unfilled = [
+        f.label
+        for f in info.fields
+        if f.type in {"text", "choice"} and f.id not in filled and not f.value
+    ]
+    if any(f.type in {"checkbox", "radio"} for f in info.fields):
+        notes.append("Ankreuzfelder und Auswahlknöpfe sind Ihre Entscheidung und werden nie automatisch gesetzt.")
+    if any(f.type == "signature" for f in info.fields):
+        notes.append("Unterschriften werden nicht automatisch erzeugt.")
+    return FormSuggestions(
+        form_id=form_id,
+        suggestions=suggestions,
+        unfilled=unfilled,
+        notes=notes,
+    )
+
+
+@app.post("/v1/forms/{form_id}/fill")
+async def forms_fill_legacy(form_id: str, req: FormFillRequest):
+    """Fill an interactive PDF and return it. This never submits the form."""
+    data, info = _stored_form(form_id)
+    try:
+        pdf = await run_in_threadpool(fill_form, data, info, req.values)
+    except FormError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    name = (info.filename.rsplit(".", 1)[0] or "formular") + "-ausgefuellt.pdf"
+    safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in name)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe}"'},
+    )
+
+
+@app.delete("/v1/forms/{form_id}", status_code=204)
+def forms_delete(form_id: str):
+    if not FORMS.delete(form_id):
+        raise HTTPException(404, "Formular nicht gefunden.")
+    return Response(status_code=204)
 
 
 @app.post("/v1/actions/appointment", response_model=ActionPreview)
