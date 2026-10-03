@@ -9,7 +9,11 @@ from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
+from .appointments import prepare_appointment
 from .channels import channels_info
+from .chat import compose_reply, detect_actions, last_user_message, model_question, retrieval_query
+from .forms import FormError, FormStore, SuggestContext, fill_form, read_form, suggest_by_label, suggest_by_model
+from .letters import draft_letter, extract_reference
 from .documents import DocumentParseError, parse_document
 from .evidence import EvidenceEngine
 from .answer_generation import generate_grounded_explanation
@@ -27,7 +31,17 @@ from .extraction import (
     extract_requirements,
 )
 from .schemas import (
+    AppointmentPlan,
+    AppointmentRequest,
     AskRequest,
+    ChatRequest,
+    ChatResponse,
+    FormFillRequest,
+    FormInfo,
+    FormSuggestions,
+    FormSuggestRequest,
+    LetterDraft,
+    LetterRequest,
     ChannelsInfo,
     CivicAnswer,
     Deadline,
@@ -37,7 +51,7 @@ from .schemas import (
     RelativeDeadline,
 )
 
-VERSION = "0.2.4"
+VERSION = "0.2.5"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 MAX_DOCUMENT_PAGES = int(os.getenv("MAX_DOCUMENT_PAGES", "30"))
 DOCUMENT_ENGINE = os.getenv("DOCUMENT_ENGINE", "auto")
@@ -82,6 +96,7 @@ class DocumentStore:
 
 
 STORE = DocumentStore(DOCUMENT_TTL_SECONDS, MAX_STORED_DOCUMENTS)
+FORMS = FormStore(DOCUMENT_TTL_SECONDS, MAX_STORED_DOCUMENTS)
 engine = EvidenceEngine()
 model_provider = build_model_provider()
 
@@ -226,14 +241,32 @@ async def evidence_search(req: EvidenceSearchRequest):
     )
 
 
+def _stored_document(document_id: str | None) -> tuple[str, DocumentAnalysis] | None:
+    if not document_id:
+        return None
+    stored = STORE.get(document_id)
+    if not stored:
+        raise HTTPException(404, "Dokument nicht gefunden oder bereits gelöscht.")
+    return stored
+
+
 @app.post("/v1/ask", response_model=CivicAnswer)
 async def ask(req: AskRequest):
-    text = req.message
+    return await build_answer(req.message, req.document_id)
+
+
+async def build_answer(
+    message: str,
+    document_id: str | None,
+    *,
+    model_question_text: str | None = None,
+    search_text: str | None = None,
+) -> CivicAnswer:
+    """Evidence-bound answer. Shared by /v1/ask and /v1/chat."""
+    text = search_text or message
     analysis = None
-    if req.document_id:
-        stored = STORE.get(req.document_id)
-        if not stored:
-            raise HTTPException(404, "Dokument nicht gefunden oder bereits gelöscht.")
+    stored = _stored_document(document_id)
+    if stored:
         text, analysis = stored
 
     refs = analysis.legal_references if analysis else extract_legal_references(text)
@@ -245,7 +278,7 @@ async def ask(req: AskRequest):
     deadline = primary_deadline(deadlines, relative)
 
     query = (
-        req.message
+        (search_text or message)
         if not analysis
         else " ".join(
             x
@@ -254,7 +287,7 @@ async def ask(req: AskRequest):
                 " ".join(r.raw for r in refs),
                 analysis.document_type.replace("_", " "),
                 appeal.remedy if appeal else "",
-                req.message,
+                search_text or message,
             ]
             if x
         )
@@ -272,7 +305,7 @@ async def ask(req: AskRequest):
     try:
         generated_meaning = await generate_grounded_explanation(
             model_provider,
-            question=req.message,
+            question=model_question_text or message,
             analysis=analysis,
             bundle=bundle,
         )
@@ -343,3 +376,107 @@ async def ask(req: AskRequest):
         certainty=certainty,
         warnings=(analysis.warnings if analysis else []) + bundle.warnings + grounded_warning,
     )
+
+
+# ---------------------------------------------------------------------------
+# Chat, appointments, letters and forms
+# ---------------------------------------------------------------------------
+
+
+@app.post("/v1/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest):
+    """Conversation on top of the evidence-bound pipeline. Stateless: the client sends the history."""
+    try:
+        message = last_user_message(req.messages)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    answer = await build_answer(
+        message,
+        req.document_id,
+        model_question_text=model_question(req.messages),
+        search_text=retrieval_query(req.messages),
+    )
+    stored = _stored_document(req.document_id)
+    actions = detect_actions(message, stored[1] if stored else None, answer)
+    return ChatResponse(reply=compose_reply(answer), answer=answer, actions=actions)
+
+
+@app.post("/v1/appointments/prepare", response_model=AppointmentPlan)
+def appointments_prepare(req: AppointmentRequest):
+    """Find the responsible office, the official booking route and a checklist. Never books."""
+    return prepare_appointment(req.concern, req.postal_code)
+
+
+@app.post("/v1/letters/draft", response_model=LetterDraft)
+def letters_draft(req: LetterRequest):
+    """Draft a reply letter from reviewed templates. The person checks, signs and sends it."""
+    stored = _stored_document(req.document_id)
+    text, analysis = stored if stored else (None, None)
+    return draft_letter(req, analysis=analysis, document_text=text)
+
+
+@app.post("/v1/forms", response_model=FormInfo)
+async def forms_upload(file: UploadFile = File(...)):
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if not data:
+        raise HTTPException(400, "Leere Datei.")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Datei ist zu groß.")
+    form_id = "form_" + uuid.uuid4().hex[:16]
+    try:
+        info = await run_in_threadpool(read_form, data, form_id, file.filename or "formular.pdf")
+    except FormError as exc:
+        raise HTTPException(415, str(exc)) from exc
+    FORMS.put(form_id, data, info)
+    return info
+
+
+def _stored_form(form_id: str):
+    stored = FORMS.get(form_id)
+    if not stored:
+        raise HTTPException(404, "Formular nicht gefunden oder bereits gelöscht.")
+    return stored
+
+
+@app.post("/v1/forms/{form_id}/suggest", response_model=FormSuggestions)
+async def forms_suggest(form_id: str, req: FormSuggestRequest):
+    """Suggest values from the person's own entries and the uploaded letter. Nothing is invented."""
+    from .forms import clean_profile
+
+    _, info = _stored_form(form_id)
+    stored = _stored_document(req.document_id)
+    ctx = SuggestContext(profile=clean_profile(req.profile), reference=extract_reference(stored[0]) if stored else None)
+    suggestions, unmatched = suggest_by_label(info.fields, ctx)
+    notes: list[str] = []
+    if req.use_model_for_mapping and unmatched:
+        try:
+            suggestions += await suggest_by_model(model_provider, unmatched, ctx)
+        except ModelProviderError as exc:
+            notes.append(f"Zuordnung per Sprachmodell nicht verfügbar: {exc}")
+    filled = {s.field_id for s in suggestions}
+    unfilled = [f.label for f in info.fields if f.type in {"text", "choice"} and f.id not in filled and not f.value]
+    if any(f.type in {"checkbox", "radio"} for f in info.fields):
+        notes.append("Ankreuzfelder und Auswahlknöpfe sind Ihre Entscheidung und werden nie automatisch gesetzt.")
+    if any(f.type == "signature" for f in info.fields):
+        notes.append("Unterschreiben Sie nach dem Ausdrucken bzw. mit Ihrer eigenen Signatur.")
+    return FormSuggestions(form_id=form_id, suggestions=suggestions, unfilled=unfilled, notes=notes)
+
+
+@app.post("/v1/forms/{form_id}/fill")
+async def forms_fill(form_id: str, req: FormFillRequest):
+    """Return the filled PDF for download. It is not submitted anywhere."""
+    data, info = _stored_form(form_id)
+    try:
+        pdf = await run_in_threadpool(fill_form, data, info, req.values)
+    except FormError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    name = (info.filename.rsplit(".", 1)[0] or "formular") + "-ausgefuellt.pdf"
+    safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in name)
+    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{safe}"'})
+
+
+@app.delete("/v1/forms/{form_id}", status_code=204)
+def forms_delete(form_id: str):
+    if not FORMS.delete(form_id):
+        raise HTTPException(404, "Formular nicht gefunden.")
+    return Response(status_code=204)
