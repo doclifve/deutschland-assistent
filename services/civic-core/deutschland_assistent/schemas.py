@@ -1,9 +1,13 @@
 from __future__ import annotations
+
 from datetime import date, datetime, timezone
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
-Confidence = Literal["high","medium","low"]
+Confidence = Literal["high", "medium", "low"]
+RequirementKind = Literal["document", "information", "payment", "action", "unknown"]
+
 
 class LegalReference(BaseModel):
     raw: str
@@ -11,23 +15,45 @@ class LegalReference(BaseModel):
     law: str
     source_url: str | None = None
 
+
 class Deadline(BaseModel):
     date: date
     label: str = "Mögliche Frist"
     confidence: Confidence = "medium"
     evidence_text: str | None = None
 
+
 class RelativeDeadline(BaseModel):
-    """A period stated relative to an event, e.g. "innerhalb eines Monats nach Bekanntgabe"."""
+    """A period stated relative to an event, e.g. 'innerhalb eines Monats nach Bekanntgabe'."""
+
     raw: str
     period_value: int
-    period_unit: Literal["days","weeks","months"]
+    period_unit: Literal["days", "weeks", "months"]
     trigger: str
     document_date: date | None = None
     assumed_trigger_date: date | None = None
     estimated_end: date | None = None
     basis: list[str] = Field(default_factory=list)
     confidence: Confidence = "low"
+
+
+class Requirement(BaseModel):
+    text: str
+    kind: RequirementKind = "unknown"
+    due_date: date | None = None
+    confidence: Confidence = "medium"
+    evidence_text: str | None = None
+
+
+class AppealInstruction(BaseModel):
+    remedy: Literal["widerspruch", "einspruch", "klage", "beschwerde", "unknown"]
+    deadline_expression: str | None = None
+    explicit_deadline: date | None = None
+    recipient: str | None = None
+    methods: list[str] = Field(default_factory=list)
+    evidence_text: str
+    confidence: Confidence = "medium"
+
 
 class DocumentAnalysis(BaseModel):
     document_id: str
@@ -42,12 +68,22 @@ class DocumentAnalysis(BaseModel):
     leika_ids: list[str] = Field(default_factory=list)
     authority_hint: str | None = None
     requested_items: list[str] = Field(default_factory=list)
+    requirements: list[Requirement] = Field(default_factory=list)
+    appeal_instruction: AppealInstruction | None = None
     warnings: list[str] = Field(default_factory=list)
+
 
 class EvidenceItem(BaseModel):
     id: str
     source_id: str
-    kind: Literal["user_document","official_law","official_legal_api","official_service","official_guidance","official_case_law"]
+    kind: Literal[
+        "user_document",
+        "official_law",
+        "official_legal_api",
+        "official_service",
+        "official_guidance",
+        "official_case_law",
+    ]
     authority: str
     title: str
     url: str | None = None
@@ -60,19 +96,24 @@ class EvidenceItem(BaseModel):
     effective_on: date | None = None
     metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
 
+
 class EvidenceBundle(BaseModel):
     query: str
     items: list[EvidenceItem] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
+
 class AskRequest(BaseModel):
-    message: str = Field(min_length=1,max_length=12000)
+    message: str = Field(min_length=1, max_length=12000)
     language: str = "de"
     document_id: str | None = None
 
+
 class EvidenceSearchRequest(BaseModel):
-    query: str = Field(min_length=1,max_length=4000)
-    limit: int = Field(default=8,ge=1,le=30)
+    query: str = Field(min_length=1, max_length=4000)
+    limit: int = Field(default=8, ge=1, le=30)
+    include_case_law: bool = True
+
 
 class CivicAnswer(BaseModel):
     what_is_this: str | None = None
@@ -81,10 +122,15 @@ class CivicAnswer(BaseModel):
     deadline: Deadline | None = None
     relative_deadlines: list[RelativeDeadline] = Field(default_factory=list)
     documents_needed: list[str] = Field(default_factory=list)
+    requirements: list[Requirement] = Field(default_factory=list)
+    appeal_instruction: AppealInstruction | None = None
     missing_information: list[str] = Field(default_factory=list)
     legal_references: list[LegalReference] = Field(default_factory=list)
     evidence: list[EvidenceItem] = Field(default_factory=list)
     sources: list[EvidenceItem] = Field(default_factory=list)
     certainty: Confidence = "medium"
     warnings: list[str] = Field(default_factory=list)
-    disclaimer: str = "Informationshilfe, keine individuelle Rechtsberatung oder Behördenentscheidung. Maßgeblich sind Originaldokumente und amtliche Quellen."
+    disclaimer: str = (
+        "Informationshilfe, keine individuelle Rechtsberatung oder Behördenentscheidung. "
+        "Maßgeblich sind Originaldokumente und amtliche Quellen."
+    )

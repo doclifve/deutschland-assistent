@@ -10,23 +10,35 @@ Deutschland Assistent is an open-source, evidence-first civic assistant. It is d
 
 > **Core principle:** The model is not the source of truth. Official sources and the user's document are.
 
-## What v0.2 can do
+## What v0.2.2 can do
 
-- Upload text and PDF documents.
+- Upload PDFs, text files **and photos/scans**.
 - Extract text, dates, deadlines and common legal references.
 - Analyze documents without any LLM or API key.
-- Optionally use **Docling** for OCR and layout-aware parsing of scans/images.
-- Extract deadlines, legal references, LeiKa identifiers and authority hints deterministically.
+- Use **Docling locally** for OCR and layout-aware parsing of photos, scans and text-poor PDFs; remote Docling services are disabled.
+- Extract deadlines, legal references, LeiKa identifiers, authority hints, **requested documents/actions/payments** and **Rechtsbehelfsbelehrungen** deterministically.
 - Recognise relative deadlines from *Rechtsbehelfsbelehrungen* ("innerhalb eines Monats nach Bekanntgabe") and estimate the end date conservatively from the letter date (4-day postal fiction since 1 Jan 2025, §§ 187 f. BGB, weekend shift). Estimates are always flagged `confidence: low` with their calculation basis.
 - Hold uploaded documents only in memory, with an expiry (`DOCUMENT_TTL_SECONDS`, default 1 h), a size cap and an explicit `DELETE /v1/documents/{id}`.
 - Resolve explicit law citations through **Gesetze im Internet**.
-- Search current federal legislation through the official **NeuRIS** API, with a direct-law fallback because NeuRIS is still in test phase and incomplete.
+- Search current federal legislation **and federal case law** through the official **NeuRIS** API, with a direct-law fallback because NeuRIS is still in test phase and incomplete.
 - Match common benefits/services against an auditable registry of official federal sources.
 - Return structured, ranked evidence with every important source.
 - Ask questions through a simple web interface.
 - Provide an OpenClaw skill for WhatsApp/Telegram/Signal-style access.
-- Provide a separate WhatsApp Cloud API adapter scaffold for production deployments.
+- Accept text, **photos and documents over the WhatsApp Cloud API adapter**, verify Meta webhook signatures and forward media through the same evidence-first document pipeline.
 - Keep channel integrations separate from the civic core.
+
+### What a document answer contains
+
+For a photographed authority letter the API can now return, separately:
+
+- the document/authority type,
+- explicit and relative deadlines,
+- requested documents, information, payments or actions,
+- detected appeal/remedy instructions,
+- cited statutes,
+- relevant official legislation and case law,
+- a citizen-facing next-step list with uncertainty preserved.
 
 ## Product idea
 
@@ -139,9 +151,13 @@ curl -X POST http://localhost:8000/v1/documents \
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API |
 | `DOCUMENT_ENGINE` | `auto` | `basic`, `docling` or `auto` |
 | `MAX_UPLOAD_BYTES` | `15728640` | Upload size limit |
+| `MAX_DOCUMENT_PAGES` | `30` | Maximum pages per document |
+| `DOCLING_ARTIFACTS_PATH` | `/opt/docling-models` | Local Docling model cache |
+| `PREFETCH_DOCLING_MODELS` | `0` | Set to `1` at image build time to prefetch Docling models |
 | `DOCUMENT_TTL_SECONDS` | `3600` | How long an uploaded document stays in memory |
 | `MAX_STORED_DOCUMENTS` | `500` | Upper bound for documents held at once |
 | `WHATSAPP_APP_SECRET` | – | Verifies Meta's `X-Hub-Signature-256`; required when `APP_ENV=production` |
+| `MAX_WHATSAPP_MEDIA_BYTES` | `15728640` | Maximum WhatsApp media size accepted by the adapter |
 
 ## OpenClaw
 
@@ -213,7 +229,7 @@ The deterministic extraction tests cover explicit and relative deadlines, docume
 
 ## Status
 
-**v0.2 early alpha.** The Evidence Engine is implemented; APIs and schemas may still change.
+**v0.2.2 early alpha.** OCR document intelligence, structured demands/appeal extraction and NeuRIS case-law retrieval are implemented; APIs and schemas may still change.
 
 ## License
 
