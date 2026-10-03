@@ -64,6 +64,17 @@ export default function Home() {
   const howRef = useRef<HTMLElement>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppChannel | null>(null);
   const [qr, setQr] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Array<{role:"user"|"assistant";content:string}>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
+  const [appointmentService, setAppointmentService] = useState("");
+  const [appointmentLocation, setAppointmentLocation] = useState("");
+  const [appointmentUrl, setAppointmentUrl] = useState("");
+  const [appointmentAction, setAppointmentAction] = useState<any>(null);
+  const formAgentInput = useRef<HTMLInputElement>(null);
+  const [formInspection, setFormInspection] = useState<any>(null);
+  const [formProfile, setFormProfile] = useState("");
+  const [formAction, setFormAction] = useState<any>(null);
 
   // Public channel details come from the API; the section only shows when a number is configured.
   useEffect(() => {
@@ -142,6 +153,103 @@ export default function Home() {
     } catch (err) {
       fail(err);
     }
+  }
+
+
+  async function chatSubmit(e: FormEvent) {
+    e.preventDefault();
+    const message = chatInput.trim();
+    if (!message || chatBusy) return;
+    const next = [...chatMessages, { role: "user" as const, content: message }];
+    setChatMessages(next);
+    setChatInput("");
+    setChatBusy(true);
+    try {
+      const r = await fetch(API + "/v1/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: next, language: "de" }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      setChatMessages([...next, { role: "assistant", content: data.message }]);
+    } catch (e) {
+      setChatMessages([...next, { role: "assistant", content: String(e instanceof Error ? e.message : e) }]);
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
+  async function prepareAppointment(e: FormEvent) {
+    e.preventDefault();
+    const r = await fetch(API + "/v1/actions/appointment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service: appointmentService,
+        location: appointmentLocation || null,
+        official_booking_url: appointmentUrl || null,
+      }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    setAppointmentAction(await r.json());
+  }
+
+  async function confirmAppointment(approve: boolean) {
+    if (!appointmentAction) return;
+    const r = await fetch(API + `/v1/actions/${appointmentAction.action_id}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approve, expected_version: appointmentAction.version }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    setAppointmentAction(await r.json());
+  }
+
+  async function inspectAgentForm(file?: File) {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(API + "/v1/forms/inspect", { method: "POST", body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    setFormInspection(await r.json());
+    setFormAction(null);
+  }
+
+  function profileFromText(text: string) {
+    const profile: Record<string, string> = {};
+    text.split(/\n+/).forEach((line) => {
+      const i = line.indexOf(":");
+      if (i > 0) {
+        const key = line.slice(0, i).trim();
+        const value = line.slice(i + 1).trim();
+        if (key && value) profile[key] = value;
+      }
+    });
+    return profile;
+  }
+
+  async function prepareAgentForm() {
+    if (!formInspection) return;
+    const profile = profileFromText(formProfile);
+    const r = await fetch(API + `/v1/forms/${formInspection.form_id}/agent-prepare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    setFormAction(await r.json());
+  }
+
+  async function confirmAgentForm() {
+    if (!formAction) return;
+    const r = await fetch(API + `/v1/actions/${formAction.action_id}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approve: true, expected_version: formAction.version }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    setFormAction(await r.json());
   }
 
   function reset() {
@@ -428,6 +536,87 @@ export default function Home() {
           </div>
         </section>
       )}
+
+
+      <section className="section section-grey" id="assistant-chat">
+        <p className="section-eyebrow">Der Assistent</p>
+        <h2 className="section-title">Schreiben. Fragen. Erledigen.</h2>
+        <p className="section-sub">
+          Mit konfiguriertem Deutschland-LLM können Sie frei schreiben. Bei Behörden- und Rechtsfragen
+          werden amtliche Quellen eingebunden.
+        </p>
+        <div className="agent-grid">
+          <div className="agent-card">
+            <h3>Mit dem Assistenten schreiben</h3>
+            <div className="chat-box" aria-live="polite">
+              {chatMessages.length === 0 && <p className="agent-muted">Fragen Sie zum Beispiel: „Welche Unterlagen brauche ich für einen neuen Personalausweis?“</p>}
+              {chatMessages.map((m, i) => (
+                <div key={i} className={`chat-message chat-${m.role}`}>{m.content}</div>
+              ))}
+            </div>
+            <form className="agent-form" onSubmit={chatSubmit}>
+              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Nachricht schreiben …" />
+              <button className="button" type="submit" disabled={!chatInput.trim() || chatBusy}>
+                {chatBusy ? "Denkt …" : "Senden"}
+              </button>
+            </form>
+          </div>
+
+          <div className="agent-card">
+            <h3>Termin vorbereiten</h3>
+            <p className="agent-muted">Der Assistent bereitet die Aktion vor. Gebucht wird erst nach Ihrer Bestätigung und nur über einen freigegebenen Connector.</p>
+            <form className="agent-form agent-form-stack" onSubmit={prepareAppointment}>
+              <input value={appointmentService} onChange={(e) => setAppointmentService(e.target.value)} placeholder="z. B. Personalausweis beantragen" required />
+              <input value={appointmentLocation} onChange={(e) => setAppointmentLocation(e.target.value)} placeholder="Ort / Behörde (optional)" />
+              <input value={appointmentUrl} onChange={(e) => setAppointmentUrl(e.target.value)} placeholder="Offizielle Buchungs-URL (optional)" />
+              <button className="button" type="submit" disabled={!appointmentService.trim()}>Vorschau erstellen</button>
+            </form>
+            {appointmentAction && (
+              <div className="action-preview">
+                <strong>{appointmentAction.summary}</strong>
+                <p>Status: {appointmentAction.status}</p>
+                {appointmentAction.status === "prepared" && (
+                  <div className="action-buttons">
+                    <button className="button" type="button" onClick={() => confirmAppointment(true)}>Bestätigen</button>
+                    <button className="link-button" type="button" onClick={() => confirmAppointment(false)}>Abbrechen</button>
+                  </div>
+                )}
+                {appointmentAction.status === "approved" && <p>Freigegeben. Ein verbundener Browser-/Behörden-Connector darf den Termin jetzt ausführen.</p>}
+              </div>
+            )}
+          </div>
+
+          <div className="agent-card">
+            <h3>PDF-Formular ausfüllen</h3>
+            <p className="agent-muted">Ausfüllbares PDF hochladen. Der Formular-Agent ordnet Ihre Angaben den vorhandenen Feldern zu. Das PDF wird erst nach Bestätigung erzeugt.</p>
+            <input ref={formAgentInput} className="visually-hidden" type="file" accept=".pdf,application/pdf" onChange={(e) => inspectAgentForm(e.target.files?.[0])} />
+            <button className="button" type="button" onClick={() => formAgentInput.current?.click()}>Formular auswählen</button>
+            {formInspection && (
+              <div className="form-agent">
+                <p>{formInspection.fields.length} ausfüllbare Felder erkannt.</p>
+                <textarea
+                  value={formProfile}
+                  onChange={(e) => setFormProfile(e.target.value)}
+                  placeholder={"Vorname: Max\nNachname: Mustermann\nGeburtsdatum: 01.01.1990\nStraße: Musterstraße 1\nPLZ: 12345\nOrt: Berlin"}
+                  rows={7}
+                />
+                <button className="button" type="button" onClick={prepareAgentForm} disabled={!formProfile.trim()}>Agent Vorschau erstellen</button>
+              </div>
+            )}
+            {formAction && (
+              <div className="action-preview">
+                <strong>{formAction.summary}</strong>
+                <p>{Object.keys(formAction.payload?.values || {}).length} Felder werden ausgefüllt.</p>
+                {formAction.payload?.unresolved?.length > 0 && <p>Noch unklar: {formAction.payload.unresolved.join(", ")}</p>}
+                {formAction.status === "prepared" && <button className="button" type="button" onClick={confirmAgentForm}>Ausfüllen bestätigen</button>}
+                {formAction.status === "completed" && formAction.artifact_url && (
+                  <a className="button" href={API + formAction.artifact_url}>Ausgefülltes PDF herunterladen</a>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       <section className="section section-grey section-ask">
         <h2 className="section-title">Oder einfach fragen.</h2>
