@@ -207,4 +207,4 @@ Apache-2.0 for original project code unless a file says otherwise. External comp
 
 The logo is intentionally alive: the three black, red and gold circles breathe apart and back together with a slight phase shift (3 s cycle, 0.3 s offset) while the whole cluster rotates slowly (12 s). Red and gold are slightly translucent, so their overlaps change color as the circles move. Motion is disabled automatically when the operating system requests reduced motion.
 
-The README uses `assets/logo-animated.svg`, a self-contained animated SVG (CSS only, no scripts), so it also animates on GitHub. `assets/logo.svg` remains the static version for places that cannot show animation.
+The README uses `assets/logo-animated.svg`, a self-contained animated SVG (CSS only, no scripts), so it also animates on GitHub. `assets/logo.svg` remains the static version for places that cannot show animation. The animated logo has a transparent background; in dark mode the black circle gets a subtle light outline so it stays visible.
