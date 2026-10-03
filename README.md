@@ -36,6 +36,7 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - Strukturierte, gerankte Evidenz zu einer Antwort zurückgeben.
 - Fragen über eine einfache Weboberfläche stellen.
 - WhatsApp anbinden: Texte, Fotos und Dokumente können über die WhatsApp Cloud API in denselben Analyse-Workflow gelangen.
+- OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.\n- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als reine Erklärungsschicht hinter der Evidence Engine verwenden. Ohne Konfiguration bleibt der bisherige deterministische Modus aktiv.
 - OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
 - Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als reine Erklärungsschicht hinter der Evidence Engine verwenden. Ohne Konfiguration bleibt der bisherige deterministische Modus aktiv.
 
@@ -365,6 +366,9 @@ Neue Funktionen mit potenziell großen Folgen für Bürgerinnen und Bürger soll
 
 ## Status
 
+**v0.2.3 – frühe Alpha-Version.**
+
+Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen, die amtliche Evidence Engine sowie eine optionale evidenzbeschränkte LLM-Erklärungsschicht sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
 **v0.2.4 – frühe Alpha-Version.**
 
 Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen, die vertiefte amtliche Rechtsinformationen-Integration sowie eine optionale evidenzbeschränkte LLM-Erklärungsschicht sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
