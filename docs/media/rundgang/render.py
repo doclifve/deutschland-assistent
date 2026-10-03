@@ -1,4 +1,4 @@
-"""Render the keynote-style walkthrough (docs/media/rundgang.mp4 and .gif).
+"""Render the keynote-style walkthrough (docs/media/<NAME>.mp4 and .gif).
 
 The film is driven frame by frame through window.render(t), so motion is exact
 regardless of machine speed. It reuses the web app's stylesheet, so re-run this
@@ -21,6 +21,9 @@ from playwright.async_api import async_playwright
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent
 FPS = 30
+# Bump the version whenever the film changes: GitHub and browsers cache images by
+# file name, so a re-render under the same name keeps showing the old animation.
+NAME = "rundgang-v2"
 
 
 async def render_frames(frames: Path) -> None:
@@ -48,14 +51,14 @@ def main() -> None:
         asyncio.run(render_frames(frames))
         pattern = str(frames / "f%04d.jpg")
         ffmpeg("-framerate", str(FPS), "-i", pattern, "-c:v", "libx264", "-pix_fmt", "yuv420p",
-               "-crf", "18", "-preset", "slow", "-movflags", "+faststart", str(OUT / "rundgang.mp4"))
+               "-crf", "18", "-preset", "slow", "-movflags", "+faststart", str(OUT / f"{NAME}.mp4"))
         palette = str(frames / "palette.png")
         ffmpeg("-framerate", str(FPS), "-i", pattern, "-vf",
                "fps=15,scale=960:-1:flags=lanczos,palettegen=max_colors=128:stats_mode=diff", palette)
         ffmpeg("-framerate", str(FPS), "-i", pattern, "-i", palette, "-lavfi",
                "fps=15,scale=960:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=sierra2_4a:diff_mode=rectangle",
-               str(OUT / "rundgang.gif"))
-    print("wrote", OUT / "rundgang.mp4", "and", OUT / "rundgang.gif")
+               str(OUT / f"{NAME}.gif"))
+    print("wrote", OUT / f"{NAME}.mp4", "and", OUT / f"{NAME}.gif", "- update the README if NAME changed")
 
 
 if __name__ == "__main__":
