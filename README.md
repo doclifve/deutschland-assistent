@@ -10,6 +10,17 @@ Deutschland Assistent is an open-source, evidence-first civic assistant. It is d
 
 > **Core principle:** The model is not the source of truth. Official sources and the user's document are.
 
+<p align="center">
+  <img src="docs/screenshots/iphone.png" alt="Deutschland Assistent auf dem iPhone: Startseite mit animiertem Logo, „So einfach.“ in drei Schritten und Ergebnis mit geschätzter Widerspruchsfrist und amtlichen Quellen" width="860" />
+</p>
+
+<details>
+<summary>iPad</summary>
+<p align="center">
+  <img src="docs/screenshots/ipad.png" alt="Deutschland Assistent auf dem iPad: Startseite mit animiertem Logo und der Überschrift „Behördenpost. Endlich verständlich.“" width="760" />
+</p>
+</details>
+
 ## What v0.2.2 can do
 
 - Upload PDFs, text files **and photos/scans**.
@@ -24,6 +35,7 @@ Deutschland Assistent is an open-source, evidence-first civic assistant. It is d
 - Match common benefits/services against an auditable registry of official federal sources.
 - Return structured, ranked evidence with every important source.
 - Ask questions through a simple web interface.
+- Connect via WhatsApp: the web app shows a button and QR code from `GET /v1/channels`; the adapter answers photos, PDFs and questions in the chat.
 - Provide an OpenClaw skill for WhatsApp/Telegram/Signal-style access.
 - Accept text, **photos and documents over the WhatsApp Cloud API adapter**, verify Meta webhook signatures and forward media through the same evidence-first document pipeline.
 - Keep channel integrations separate from the civic core.
@@ -105,15 +117,31 @@ Then open:
 - API docs: http://localhost:8000/docs
 - Health: http://localhost:8000/health
 
-### Option B — backend only
+### Option B — without Docker
+
+Requires Python 3.11+ (on macOS: `python3.12`, not `python`) and Node.js 20+.
+
+Backend, in one terminal:
 
 ```bash
 cd services/civic-core
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-uvicorn deutschland_assistent.main:app --reload --port 8000
+python -m uvicorn deutschland_assistent.main:app --reload --port 8000
 ```
+
+`python -m uvicorn` makes sure the server runs from the virtual environment, even if an older global `uvicorn` is installed.
+
+Web interface, in a second terminal:
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Then open http://localhost:3000 (API docs: http://localhost:8000/docs).
 
 For Docling/OCR support:
 
@@ -140,6 +168,7 @@ curl -X POST http://localhost:8000/v1/documents \
 
 - `POST /v1/evidence/search` — search the official-source layer directly.
 - `GET /v1/sources` — inspect source roles/status.
+- `GET /v1/channels` — public connection details for messaging channels (WhatsApp number and `wa.me` link). Never contains tokens or secrets.
 - `POST /v1/documents` — parse a citizen document and extract deterministic facts.
 - `DELETE /v1/documents/{id}` — remove an uploaded document before it expires.
 - `POST /v1/ask` — combine document facts with official evidence.
@@ -156,8 +185,50 @@ curl -X POST http://localhost:8000/v1/documents \
 | `PREFETCH_DOCLING_MODELS` | `0` | Set to `1` at image build time to prefetch Docling models |
 | `DOCUMENT_TTL_SECONDS` | `3600` | How long an uploaded document stays in memory |
 | `MAX_STORED_DOCUMENTS` | `500` | Upper bound for documents held at once |
+| `WHATSAPP_PUBLIC_NUMBER` | – | Public WhatsApp number in E.164 format (`+4915123456789`). Enables the WhatsApp section and QR code in the web app; empty hides it |
+| `WHATSAPP_GREETING` | `Hallo` | Text pre-filled in the chat when someone opens the `wa.me` link |
 | `WHATSAPP_APP_SECRET` | – | Verifies Meta's `X-Hub-Signature-256`; required when `APP_ENV=production` |
 | `MAX_WHATSAPP_MEDIA_BYTES` | `15728640` | Maximum WhatsApp media size accepted by the adapter |
+
+## WhatsApp
+
+<p align="center">
+  <img src="docs/screenshots/whatsapp.png" alt="WhatsApp-Verbindung: Abschnitt „Einfach per WhatsApp.“ in der Web-App, Begrüßung im Chat und Antwort auf ein fotografiertes Schreiben mit Frist, nächsten Schritten und amtlicher Quelle" width="860" />
+</p>
+
+Citizens can use the assistant directly in WhatsApp: send a photo or PDF of a letter, optionally with a question, and get the deadline, next steps and official sources back as a chat message. *(The chat on the right is a schematic rendering of the adapter's real reply text; in WhatsApp it appears in the usual chat view.)*
+
+How the pieces connect:
+
+```text
+Web app ──GET /v1/channels──▶ Civic Core          (public number, wa.me link → button + QR code)
+WhatsApp ──webhook──▶ whatsapp-cloud adapter ──▶ Civic Core /v1/documents, /v1/ask
+                              │
+                              └──▶ WhatsApp Cloud API (reply)
+```
+
+- **Web app:** shows "Einfach per WhatsApp." with an *In WhatsApp öffnen* button and, on tablet and desktop, a QR code — only when `WHATSAPP_PUBLIC_NUMBER` is set.
+- **Adapter** (`channels/whatsapp-cloud/`): verifies Meta's webhook signature, accepts text, photos and PDFs, answers greetings such as "Hallo" or "Hilfe" with a short how-to, and replies with the core's answer.
+
+### Setting it up
+
+1. In the Meta developer dashboard, create an app with the **WhatsApp** product and register a business phone number. Note the *phone number ID*, a permanent *access token* and the app's *app secret*.
+2. Fill in `.env`:
+   ```bash
+   WHATSAPP_PUBLIC_NUMBER=+4915123456789   # the number people write to
+   WHATSAPP_PHONE_NUMBER_ID=...
+   WHATSAPP_ACCESS_TOKEN=...
+   WHATSAPP_APP_SECRET=...
+   WHATSAPP_VERIFY_TOKEN=<a long random string>
+   ```
+3. Start everything including the adapter:
+   ```bash
+   docker compose --profile whatsapp up --build
+   ```
+4. Expose the adapter over HTTPS (for local testing e.g. with a tunnel such as `cloudflared` or `ngrok` pointing at port 8010) and enter `https://<your-host>/webhook` plus your `WHATSAPP_VERIFY_TOKEN` as the webhook in the Meta dashboard. Subscribe to the **messages** field.
+5. Send "Hallo" to your number. You should get the welcome message back.
+
+Messages pass through WhatsApp (Meta), so the privacy notice in the web app says so. Documents are deleted from the core after `DOCUMENT_TTL_SECONDS`.
 
 ## OpenClaw
 

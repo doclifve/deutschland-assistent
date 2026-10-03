@@ -19,3 +19,10 @@ def test_delete_document():
 def test_cors_not_wildcard():
  r=client.options("/v1/ask",headers={"Origin":"https://evil.example","Access-Control-Request-Method":"POST"})
  assert r.headers.get("access-control-allow-origin")!="*"
+def test_channels_endpoint_without_number(monkeypatch):
+ monkeypatch.delenv("WHATSAPP_PUBLIC_NUMBER",raising=False)
+ r=client.get("/v1/channels"); assert r.status_code==200; assert r.json()["whatsapp"]["enabled"] is False
+def test_channels_endpoint_with_number(monkeypatch):
+ monkeypatch.setenv("WHATSAPP_PUBLIC_NUMBER","+49 151 23456789")
+ wa=client.get("/v1/channels").json()["whatsapp"]; assert wa["enabled"] is True; assert wa["link"].startswith("https://wa.me/4915123456789")
+ assert "token" not in str(wa).lower()

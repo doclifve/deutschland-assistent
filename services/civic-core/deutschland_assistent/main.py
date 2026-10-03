@@ -9,6 +9,7 @@ from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
+from .channels import channels_info
 from .documents import DocumentParseError, parse_document
 from .evidence import EvidenceEngine
 from .extraction import (
@@ -25,6 +26,7 @@ from .extraction import (
 )
 from .schemas import (
     AskRequest,
+    ChannelsInfo,
     CivicAnswer,
     Deadline,
     DocumentAnalysis,
@@ -113,6 +115,12 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "deutschland-assistent-core", "version": VERSION}
+
+
+@app.get("/v1/channels", response_model=ChannelsInfo)
+def channels():
+    """Public connection details for messaging channels (currently WhatsApp)."""
+    return channels_info()
 
 
 @app.get("/v1/sources")

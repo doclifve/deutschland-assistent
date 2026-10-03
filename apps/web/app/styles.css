@@ -150,6 +150,24 @@ h1, h2, h3, p { margin: 0; }
 .ask input::placeholder { color: var(--quiet); }
 .fine { margin-top: 18px; font-size: 12px; line-height: 1.45; color: var(--muted); text-align: center; }
 
+/* ---------- WhatsApp ---------- */
+
+.whatsapp-grid { display: grid; gap: 56px; align-items: center; }
+.whatsapp-icon { width: 56px; height: 56px; border-radius: 18px; background: var(--grey); display: flex; align-items: center; justify-content: center; margin-bottom: 24px; }
+.whatsapp-steps { list-style: none; margin: 36px 0 0; padding: 0; display: grid; gap: 18px; }
+.whatsapp-steps li { display: flex; gap: 14px; align-items: flex-start; font-size: 17px; line-height: 1.45; color: var(--muted); }
+.whatsapp-steps strong { color: var(--ink); }
+.whatsapp-steps .step-num { width: 28px; height: 28px; border-radius: 14px; font-size: 14px; margin-top: -2px; }
+.step-num-gold { background: var(--gold) !important; color: var(--ink) !important; }
+.whatsapp-button { width: 100%; margin-top: 36px; }
+.whatsapp-button:hover { color: #FFFFFF; }
+.whatsapp-fine { margin-top: 14px; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.whatsapp-qr { display: none; }
+.qr-placeholder { width: 280px; height: 280px; border-radius: 20px; background: #FFFFFF; }
+.whatsapp-qr img { display: block; width: 280px; height: 280px; border-radius: 20px; background: #FFFFFF; }
+.qr-caption { margin-top: 24px; font-size: 15px; color: var(--muted); }
+.qr-number { margin-top: 4px; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+
 /* ---------- Result ---------- */
 
 .result { min-height: 100vh; background: var(--grey); padding: calc(40px + env(safe-area-inset-top)) 20px calc(32px + env(safe-area-inset-bottom)); }
@@ -218,6 +236,9 @@ h1, h2, h3, p { margin: 0; }
   .question { padding: 32px 28px; }
   .question h3 { margin-top: 20px; font-size: 26px; }
   .trust { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; }
+  .whatsapp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 72px; }
+  .whatsapp-button { width: auto; padding: 0 36px; }
+  .whatsapp-qr { display: flex; flex-direction: column; align-items: center; text-align: center; background: var(--grey); border-radius: 32px; padding: 56px 40px; }
 
   .result { padding-top: 56px; }
   .result-head h1 { font-size: 40px; }
