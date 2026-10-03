@@ -39,6 +39,24 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
 - Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als reine Erklärungsschicht hinter der Evidence Engine verwenden. Ohne Konfiguration bleibt der bisherige deterministische Modus aktiv.
 
+## Neu in v0.2.4
+
+Die amtliche Rechtsrecherche ist jetzt ein eigener, robuster Baustein der Evidence Engine:
+
+- **Rechtsinformationen des Bundes** für Bundesrecht und Rechtsprechung.
+- **ELI** für Gesetzgebung und **ECLI** für Rechtsprechung werden als strukturierte Identifier übernommen, sofern vorhanden.
+- Rechtsprechung kann nach Datum gefiltert und paginiert durchsucht werden.
+- Die wichtigsten Treffer können über den amtlichen Detail-Endpunkt nachgeladen werden.
+- Aus vollständigen Entscheidungen können unter anderem Leitsatz, Orientierungssatz, Tenor, Tatbestand und Entscheidungsgründe als Evidenz verwendet werden.
+- Für Entscheidungen werden direkte JSON-, HTML- und XML-Repräsentationen hinterlegt.
+- Ein kurzer TTL-Cache reduziert unnötige Wiederholungsanfragen.
+- HTTP 429 und temporäre Serverfehler werden mit begrenztem Retry und Backoff behandelt.
+- Ein täglicher GitHub-Actions-Smoke-Test prüft die amtlichen Such-Endpunkte unabhängig vom Nutzerverkehr.
+
+Parallel dazu kann die Erklärungsschicht über einen **in Deutschland betriebenen LLM-Endpunkt** laufen. Der deterministische Kern bleibt davon unabhängig.
+
+> **Leitprinzip:** Das Modell formuliert. Die Evidenz entscheidet, was behauptet werden darf.
+
 ## Was eine Dokumentantwort enthalten soll
 
 Nach dem Upload oder Foto eines Behördenbriefs kann der Assistent Informationen getrennt ausgeben:
@@ -71,6 +89,42 @@ Der wichtigste End-to-End-Anwendungsfall ist bewusst einfach:
     nächste Schritte vorbereiten
 
 Alles, was diesen Ablauf zuverlässiger, verständlicher oder sicherer macht, hat Vorrang vor zusätzlicher Oberfläche.
+
+## Aktueller End-to-End-Datenfluss
+
+    Foto / PDF / Text
+            ↓
+      Docling / Parser
+            ↓
+    deterministische Extraktion
+      ├─ Dokumenttyp
+      ├─ Behörde
+      ├─ Fristen
+      ├─ Anforderungen
+      ├─ Rechtsbehelf
+      └─ Gesetzeszitate
+            ↓
+       Evidence Engine
+      ├─ Gesetze im Internet
+      ├─ Rechtsinformationen des Bundes
+      │    ├─ Gesetzgebung
+      │    ├─ Rechtsprechung
+      │    ├─ ELI / ECLI
+      │    └─ Entscheidungs-Detaildaten
+      └─ amtliche Leistungsquellen
+            ↓
+    strukturierter Evidence Context
+            ↓
+      ┌───────────────┬────────────────────┐
+      │ deterministisch│ optionales LLM    │
+      │    fallback    │ in Deutschland    │
+      └───────────────┴────────────────────┘
+            ↓
+       Evidence-Gating
+            ↓
+    verständliche Bürgerantwort
+
+Der vollständige Originalbrief wird für die optionale LLM-Erklärung **nicht standardmäßig weitergereicht**. Stattdessen erhält das Modell einen minimierten Kontext aus bereits extrahierten Fakten und amtlichen Evidenzbausteinen.
 
 ## Architektur
 
@@ -236,6 +290,30 @@ Die Evidence Engine nutzt die offizielle API der Rechtsinformationen des Bundes 
 
 Die wichtigsten Rechtsprechungstreffer können über den amtlichen Detail-Endpunkt angereichert werden. Dabei werden zum Beispiel Leitsatz, Orientierungssatz, Tenor oder Entscheidungsgründe als Evidenz verwendet, sofern vorhanden.
 
+### Was aus der Rechts-API als Evidenz genutzt werden kann
+
+Bei Rechtsprechung unterscheidet der Assistent zwischen Suchtreffer und vollständiger Entscheidung. Ein relevanter Treffer kann über seine Dokumentnummer erneut geladen und mit amtlichen Detailfeldern angereichert werden.
+
+Beispiel für die interne Evidenzkette:
+
+    § 60 SGB I im Behördenbrief
+            ↓
+    amtliche Normquelle
+            ↓
+    Suche in Rechtsinformationen des Bundes
+            ↓
+    relevante Gerichtsentscheidung
+            ↓
+    Dokumentnummer + ECLI
+            ↓
+    vollständiger Detailabruf
+            ↓
+    Leitsatz / Tenor / Entscheidungsgründe
+            ↓
+    evidenzbeschränkte Erklärung
+
+Rechtsprechung bleibt dabei eine eigene Evidenzart und wird **nicht** wie eine Gesetzesnorm behandelt.
+
 Die API befindet sich weiterhin in der Testphase. Deshalb bleibt **Gesetze im Internet** für explizite Normzitate ein unabhängiger amtlicher Fallback.
 
 ## Deutschland-gehostetes Sprachmodell
@@ -362,6 +440,19 @@ Siehe [CONTRIBUTING.md](CONTRIBUTING.md).
     make test
 
 Neue Funktionen mit potenziell großen Folgen für Bürgerinnen und Bürger sollten nicht nur neue Features, sondern auch passende Tests und Evaluationen mitbringen.
+
+## Was noch nicht als produktionsreif gilt
+
+v0.2.4 ist weiterhin eine frühe Alpha. Insbesondere:
+
+- Der öffentliche Behördenbrief-Benchmark mit 200–500 Testfällen ist noch nicht abgeschlossen.
+- OCR auf realen Smartphone-Fotos braucht noch systematische Qualitäts- und Regressionstests.
+- Die Rechtsinformationen des Bundes befinden sich in der Testphase; Schema und Datenbestand können sich verändern.
+- Das Evidence-Gating verhindert bereits bestimmte unbelegte Modellbehauptungen, ist aber noch kein vollständiger semantischer Wahrheitsbeweis.
+- `LLM_REGION=DE` ist nur eine technische Konfiguration. Tatsächliche Datenresidenz, Zero-Retention, AVV und Unterauftragsverarbeiter müssen für den konkreten Provider separat geprüft werden.
+- Folgenreiche Bürgeraktionen wie das tatsächliche Einreichen eines Widerspruchs bleiben bewusst außerhalb der aktuellen automatischen Ausführung.
+
+Diese Punkte sind Teil der Roadmap und des geplanten öffentlichen Benchmarks.
 
 ## Status
 
