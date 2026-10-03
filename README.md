@@ -21,7 +21,7 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 </p>
 </details>
 
-## Was v0.2.4 bereits kann
+## Was v0.2.5 bereits kann
 
 - PDFs, Textdateien sowie **Fotos und Scans** verarbeiten.
 - Text, Datumsangaben, Fristen und häufige Rechtsverweise erkennen.
@@ -34,10 +34,37 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - Bundesrecht und Rechtsprechung über die offizielle **Rechtsinformationen-des-Bundes-API** durchsuchen; inklusive Datumsfiltern, Pagination, ELI/ECLI-Metadaten und Detailabruf einzelner Entscheidungen. Explizite Gesetzeszitate behalten einen direkten amtlichen Fallback.
 - Häufige Leistungen gegen ein nachvollziehbares Register offizieller Quellen abgleichen.
 - Strukturierte, gerankte Evidenz zu einer Antwort zurückgeben.
-- Fragen über eine einfache Weboberfläche stellen.
+- Fragen über eine einfache Weboberfläche stellen – auch **im Gespräch mit Rückfragen**; jede Antwort bleibt an amtliche Quellen gebunden.
+- **Antwortschreiben** entwerfen: Widerspruch bzw. Einspruch, Bitte um Fristverlängerung, Nachreichung von Unterlagen – mit Datum, Aktenzeichen und Behörde aus dem Brief.
+- **Behördentermine vorbereiten**: zuständige Stelle und offizielle Buchungsseite über das Bundesportal, Unterlagen-Checkliste; gebucht wird von der Person selbst.
+- **PDF-Formulare ausfüllen**: Felder erkennen, Werte aus den eigenen Angaben vorschlagen, prüfen, ausgefülltes PDF herunterladen.
 - WhatsApp anbinden: Texte, Fotos und Dokumente können über die WhatsApp Cloud API in denselben Analyse-Workflow gelangen.
 - OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
 - Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als reine Erklärungsschicht hinter der Evidence Engine verwenden. Ohne Konfiguration bleibt der bisherige deterministische Modus aktiv.
+
+## Neu in v0.2.5: Der Assistent bereitet vor
+
+<p align="center">
+  <img src="docs/screenshots/assistent.png" alt="Vier iPhone-Ansichten: Chat mit geschätzter Widerspruchsfrist und Button „Widerspruch entwerfen“, fertiger Widerspruch als Briefentwurf, Terminvorbereitung „Wohnsitz anmelden“ mit Bundesportal-Link und Checkliste, PDF-Formular mit vorgeschlagenen Feldwerten" width="860" />
+</p>
+
+Der Assistent erklärt nicht nur, er **bereitet die nächsten Schritte vor**. Entscheiden, unterschreiben, abschicken und buchen bleibt immer bei der Person.
+
+| | Was passiert | Was nie automatisch passiert |
+|---|---|---|
+| **Fragen** (`POST /v1/chat`) | Gespräch mit Rückfragen; jede Antwort läuft durch dieselbe evidenzgebundene Pipeline wie `/v1/ask`. Passende nächste Schritte werden als Buttons vorgeschlagen. | Antworten ohne Quelle als Tatsache ausgeben |
+| **Antworten** (`POST /v1/letters/draft`) | Widerspruch/Einspruch, Fristverlängerung oder Nachreichung aus geprüften Vorlagen, mit Datum, Aktenzeichen und Behörde aus dem Brief. Fehlende Angaben bleiben als markierte `[Lücke]` stehen. | Unterschreiben, Absenden |
+| **Termin** (`POST /v1/appointments/prepare`) | Zuständige Stelle und Buchungsweg über das Bundesportal (mit Postleitzahl direkt für den eigenen Ort), Unterlagen-Checkliste, Online-Alternative wo vorhanden. | Termin buchen |
+| **Ausfüllen** (`POST /v1/forms` …) | PDF-Formularfelder erkennen, Werte aus den eigenen Angaben und dem Brief vorschlagen, ausgefülltes PDF zum Herunterladen. | Ankreuzfelder setzen, unterschreiben, einreichen |
+
+Leitplanken:
+
+- **Briefe kommen aus festen Vorlagen**, nicht aus dem Sprachmodell. Der Wortlaut eines Widerspruchs darf nicht vom Modell abhängen.
+- **Gesetzliche Fristen** (Widerspruch, Einspruch, Klage) lassen sich nicht verlängern; der Assistent weist darauf hin und bietet in diesem Fall keine Fristverlängerung an.
+- **Formularwerte stammen nur aus den Angaben der Person oder dem Brief.** Das Sprachmodell darf optional zuordnen, *welches* Feld zu welcher Angabe passt – es sieht dabei nur Feldbezeichnungen und die Namen der Angaben, nie die Werte.
+- **Chat-Verlauf** wird nur zum Verständnis von Rückfragen genutzt und als zitierter Kontext übergeben, nie als Anweisung. Der Server speichert ihn nicht; die Web-App schickt ihn bei jeder Frage mit.
+- Hochgeladene Formulare gelten wie Dokumente nur temporär (`DOCUMENT_TTL_SECONDS`) und lassen sich mit `DELETE /v1/forms/{id}` sofort löschen.
+- Die Unterlagen-Checklisten nennen, was üblicherweise verlangt wird. Verbindlich ist die Liste der zuständigen Stelle.
 
 ## Neu in v0.2.4
 
@@ -244,6 +271,13 @@ Dokument hochladen:
 - POST /v1/documents – Dokument analysieren und strukturierte Fakten extrahieren.
 - DELETE /v1/documents/{id} – hochgeladenes Dokument vor Ablauf der TTL löschen.
 - POST /v1/ask – Dokumentinformationen und amtliche Evidenz zu einer Antwort verbinden.
+- POST /v1/chat – Gespräch mit Verlauf; Antwort wie /v1/ask plus vorgeschlagene nächste Schritte.
+- POST /v1/letters/draft – Antwortschreiben (Widerspruch/Einspruch, Fristverlängerung, Nachreichung) als Entwurf.
+- POST /v1/appointments/prepare – zuständige Stelle, Buchungsweg und Unterlagen-Checkliste für ein Anliegen.
+- POST /v1/forms – PDF-Formular hochladen und Felder erkennen.
+- POST /v1/forms/{id}/suggest – Feldwerte aus eigenen Angaben und dem Brief vorschlagen.
+- POST /v1/forms/{id}/fill – ausgefülltes PDF herunterladen.
+- DELETE /v1/forms/{id} – Formular vor Ablauf der TTL löschen.
 
 ## Konfiguration
 
@@ -411,6 +445,8 @@ Bei rechtlich relevanten Aktionen gilt:
        ↓
     Ausführen
 
+Der Assistent selbst führt keine rechtlich relevante Handlung aus: Er schickt keine Briefe ab, bucht keine Termine, reicht keine Formulare ein, setzt keine Ankreuzfelder und unterschreibt nichts. Er bereitet vor; die Person prüft und handelt.
+
 Siehe außerdem:
 
 - [Sicherheit](SECURITY.md)
@@ -456,9 +492,9 @@ Diese Punkte sind Teil der Roadmap und des geplanten öffentlichen Benchmarks.
 
 ## Status
 
-**v0.2.4 – frühe Alpha-Version.**
+**v0.2.5 – frühe Alpha-Version.**
 
-Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen, die vertiefte amtliche Rechtsinformationen-Integration sowie eine optionale evidenzbeschränkte LLM-Erklärungsschicht sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
+Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen, die vertiefte amtliche Rechtsinformationen-Integration sowie eine optionale evidenzbeschränkte LLM-Erklärungsschicht sind implementiert. Neu sind Chat, Antwortschreiben, Terminvorbereitung und der PDF-Formular-Agent. Schnittstellen und Datenmodelle können sich noch ändern.
 
 ## Lizenz
 

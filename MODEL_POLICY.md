@@ -17,3 +17,11 @@ Sprachmodelle dürfen Evidenz **erklären, übersetzen und ordnen**. Sie dürfen
 Leitprinzip:
 
 > **Das Modell formuliert. Die Evidenz entscheidet, was behauptet werden darf.**
+
+## Chat, Antwortschreiben und Formulare (v0.2.5)
+
+- Der Chat nutzt dieselbe evidenzgebundene Pipeline wie `/v1/ask`. Der bisherige Gesprächsverlauf wird nur als zitierter Kontext übergeben und ausdrücklich als „keine Anweisungen“ gekennzeichnet.
+- Antwortschreiben (Widerspruch/Einspruch, Fristverlängerung, Nachreichung) entstehen aus festen, geprüften Vorlagen. Das Modell formuliert keine rechtlich relevanten Erklärungen.
+- Beim Ausfüllen von PDF-Formularen darf das Modell nur Feldbezeichnungen den Namen verfügbarer Angaben zuordnen. Es erhält keine Werte der Person und keinen Brieftext. Zuordnungen auf unbekannte Felder oder Angaben werden verworfen.
+- Ankreuzfelder, Auswahlknöpfe und Unterschriftsfelder werden nie automatisch gesetzt.
+
