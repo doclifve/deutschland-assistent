@@ -1,10 +1,19 @@
 services:
   civic-core:
-    build: ./services/civic-core
+    build:
+      context: ./services/civic-core
+      args:
+        PREFETCH_DOCLING_MODELS: ${PREFETCH_DOCLING_MODELS:-0}
     environment:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      DOCUMENT_ENGINE: ${DOCUMENT_ENGINE:-auto}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-15728640}
+      MAX_DOCUMENT_PAGES: ${MAX_DOCUMENT_PAGES:-30}
       DOCUMENT_TTL_SECONDS: ${DOCUMENT_TTL_SECONDS:-3600}
       MAX_STORED_DOCUMENTS: ${MAX_STORED_DOCUMENTS:-500}
+      DOCLING_ARTIFACTS_PATH: ${DOCLING_ARTIFACTS_PATH:-/opt/docling-models}
+    volumes:
+      - docling_models:/opt/docling-models
     ports: ["8000:8000"]
   web:
     build:
@@ -26,4 +35,8 @@ services:
       APP_ENV: ${APP_ENV:-development}
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
       WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v22.0}
+      MAX_WHATSAPP_MEDIA_BYTES: ${MAX_WHATSAPP_MEDIA_BYTES:-15728640}
     ports: ["8010:8010"]
+    depends_on: [civic-core]
+volumes:
+  docling_models:
