@@ -1,0 +1,23 @@
+services:
+  civic-core:
+    build: ./services/civic-core
+    ports: ["8000:8000"]
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_CIVIC_API_URL: ${NEXT_PUBLIC_CIVIC_API_URL:-http://localhost:8000}
+    environment:
+      NEXT_PUBLIC_CIVIC_API_URL: ${NEXT_PUBLIC_CIVIC_API_URL:-http://localhost:8000}
+    ports: ["3000:3000"]
+    depends_on: [civic-core]
+  whatsapp-cloud:
+    profiles: ["whatsapp"]
+    build: ./channels/whatsapp-cloud
+    environment:
+      CIVIC_CORE_URL: http://civic-core:8000
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-change-me}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v22.0}
+    ports: ["8010:8010"]

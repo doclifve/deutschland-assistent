@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720" role="img" aria-labelledby="title desc">
+<title id="title">Deutschland Assistent</title>
+<desc id="desc">Three overlapping circles in black, red and gold.</desc>
+<rect width="720" height="720" fill="#fff"/>
+<g style="mix-blend-mode:multiply" opacity="0.94">
+  <circle cx="360" cy="230" r="180" fill="#000000"/>
+  <circle cx="220" cy="470" r="180" fill="#EF3340"/>
+  <circle cx="500" cy="470" r="180" fill="#FFCC33"/>
+</g>
+</svg>

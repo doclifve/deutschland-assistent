@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Deutschland Assistent Logo" width="220" />
+  <img src="assets/logo.svg" alt="Deutschland Assistent Logo" width="220" />
 </p>
 
 # Deutschland Assistent 🇩🇪
