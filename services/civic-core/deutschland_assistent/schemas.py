@@ -150,7 +150,7 @@ class ChannelsInfo(BaseModel):
 
 
 ChatRole = Literal["user", "assistant"]
-AgentActionType = Literal["appointment", "form_fill"]
+AgentActionType = Literal["appointment", "form_fill", "letter"]
 AgentActionStatus = Literal["prepared", "approved", "completed", "cancelled", "failed"]
 
 
