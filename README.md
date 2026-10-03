@@ -60,7 +60,7 @@ Der Assistent erklärt nicht nur, er **bereitet die nächsten Schritte vor**. En
 Leitplanken:
 
 - **Briefe kommen aus festen Vorlagen**, nicht aus dem Sprachmodell. Der Wortlaut eines Widerspruchs darf nicht vom Modell abhängen.
-- **Gesetzliche Fristen** (Widerspruch, Einspruch, Klage) lassen sich nicht verlängern; der Assistent weist darauf hin und bietet in diesem Fall keine Fristverlängerung an.
+- **Gesetzliche Fristen** (Widerspruch, Einspruch, Klage) lassen sich nicht verlängern; der Assistent schlägt in diesem Fall keine Fristverlängerung vor und warnt, wenn man sie trotzdem wählt.
 - **Formularwerte stammen nur aus den Angaben der Person oder dem Brief.** Das Sprachmodell darf optional zuordnen, *welches* Feld zu welcher Angabe passt – es sieht dabei nur Feldbezeichnungen und die Namen der Angaben, nie die Werte.
 - **Chat-Verlauf** wird nur zum Verständnis von Rückfragen genutzt und als zitierter Kontext übergeben, nie als Anweisung. Der Server speichert ihn nicht; die Web-App schickt ihn bei jeder Frage mit.
 - Hochgeladene Formulare gelten wie Dokumente nur temporär (`DOCUMENT_TTL_SECONDS`) und lassen sich mit `DELETE /v1/forms/{id}` sofort löschen.
