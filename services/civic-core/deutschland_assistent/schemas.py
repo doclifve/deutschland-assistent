@@ -150,7 +150,7 @@ class ChannelsInfo(BaseModel):
 
 
 ChatRole = Literal["user", "assistant"]
-AgentActionType = Literal["appointment", "form_fill"]
+AgentActionType = Literal["appointment", "form_fill", "letter"]
 AgentActionStatus = Literal["prepared", "approved", "completed", "cancelled", "failed"]
 
 
@@ -242,3 +242,130 @@ class ActionCompleteRequest(BaseModel):
     result_summary: str = Field(min_length=1, max_length=3000)
     external_reference: str | None = Field(default=None, max_length=500)
     appointment_time: datetime | None = None
+
+
+# ---------------------------------------------------------------------------
+# Zusätzliche Bürgerwerkzeuge: Behörden-Terminplanung, Antwortschreiben, Formulare
+# ---------------------------------------------------------------------------
+
+ActionKind = Literal["letter", "appointment", "form"]
+LetterKind = Literal["widerspruch", "fristverlaengerung", "nachreichung"]
+
+
+class Link(BaseModel):
+    label: str
+    url: str
+    kind: Literal["official_service", "official_search", "official_law", "online_service"] = "official_service"
+
+
+class SuggestedAction(BaseModel):
+    kind: ActionKind
+    label: str
+    params: dict[str, str] = Field(default_factory=dict)
+
+
+class AppointmentRequest(BaseModel):
+    concern: str = Field(min_length=1, max_length=300)
+    postal_code: str | None = Field(default=None, max_length=10)
+
+
+class AppointmentPlan(BaseModel):
+    concern_id: str | None = None
+    title: str
+    office: str
+    steps: list[str] = Field(default_factory=list)
+    bring: list[str] = Field(default_factory=list)
+    links: list[Link] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    alternatives: list[dict[str, str]] = Field(default_factory=list)
+    disclaimer: str = (
+        "Die Buchung nehmen Sie selbst vor oder geben sie über den bestätigungspflichtigen Agenten frei. "
+        "Die zuständige Stelle nennt die verbindliche Liste der Unterlagen."
+    )
+
+
+class LetterRequest(BaseModel):
+    kind: LetterKind
+    document_id: str | None = None
+    sender_name: str | None = Field(default=None, max_length=200)
+    sender_address: str | None = Field(default=None, max_length=400)
+    recipient: str | None = Field(default=None, max_length=400)
+    reference: str | None = Field(default=None, max_length=120)
+    decision_date: date | None = None
+    letter_date: date | None = None
+    place: str | None = Field(default=None, max_length=80)
+    reason: str | None = Field(default=None, max_length=4000)
+    requested_until: date | None = None
+    items: list[str] = Field(default_factory=list, max_length=20)
+
+
+class LetterDraft(BaseModel):
+    kind: LetterKind
+    title: str
+    sender_block: str
+    recipient_block: str
+    place_date: str
+    subject: str
+    body: str
+    full_text: str
+    missing: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    legal: list[Link] = Field(default_factory=list)
+
+
+FormFieldType = Literal["text", "checkbox", "radio", "choice", "signature", "unknown"]
+
+PROFILE_KEYS = (
+    "vorname", "nachname", "geburtsname", "geburtsdatum", "geburtsort", "staatsangehoerigkeit",
+    "strasse", "hausnummer", "plz", "ort", "telefon", "email", "aktenzeichen", "datum",
+)
+
+
+class FormOption(BaseModel):
+    value: str
+    text: str
+
+
+class FormField(BaseModel):
+    id: str
+    type: FormFieldType
+    label: str
+    page: int | None = None
+    value: str | None = None
+    options: list[FormOption] = Field(default_factory=list)
+    checked_value: str | None = None
+    required: bool = False
+    max_length: int | None = None
+
+
+class FormInfo(BaseModel):
+    form_id: str
+    filename: str
+    pages: int
+    fields: list[FormField] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class FormSuggestRequest(BaseModel):
+    profile: dict[str, str] = Field(default_factory=dict)
+    document_id: str | None = None
+    use_model_for_mapping: bool = True
+
+
+class FieldSuggestion(BaseModel):
+    field_id: str
+    value: str
+    source: Literal["Ihre Angaben", "Schreiben", "Heute"]
+    matched_by: Literal["label", "model"] = "label"
+
+
+class FormSuggestions(BaseModel):
+    form_id: str
+    suggestions: list[FieldSuggestion] = Field(default_factory=list)
+    unfilled: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class FormFillRequest(BaseModel):
+    values: dict[str, str | bool] = Field(default_factory=dict)
