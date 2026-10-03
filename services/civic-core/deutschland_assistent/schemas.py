@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -147,3 +147,98 @@ class WhatsAppChannel(BaseModel):
 
 class ChannelsInfo(BaseModel):
     whatsapp: WhatsAppChannel = Field(default_factory=WhatsAppChannel)
+
+
+ChatRole = Literal["user", "assistant"]
+AgentActionType = Literal["appointment", "form_fill"]
+AgentActionStatus = Literal["prepared", "approved", "completed", "cancelled", "failed"]
+
+
+class ChatMessage(BaseModel):
+    role: ChatRole
+    content: str = Field(min_length=1, max_length=12000)
+
+
+class AgentActionSuggestion(BaseModel):
+    type: AgentActionType
+    label: str
+    description: str | None = None
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1, max_length=24)
+    language: str = "de"
+    document_id: str | None = None
+
+
+class ChatResponse(BaseModel):
+    message: str
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    sources: list[EvidenceItem] = Field(default_factory=list)
+    suggested_actions: list[AgentActionSuggestion] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    model_used: bool = False
+    disclaimer: str = (
+        "Informationshilfe. Bei Behörden-, Rechts- oder Leistungsfragen sind Originaldokumente "
+        "und amtliche Quellen maßgeblich."
+    )
+
+
+class AppointmentPrepareRequest(BaseModel):
+    service: str = Field(min_length=2, max_length=240)
+    authority: str | None = Field(default=None, max_length=240)
+    location: str | None = Field(default=None, max_length=240)
+    preferred_from: datetime | None = None
+    preferred_to: datetime | None = None
+    official_booking_url: str | None = Field(default=None, max_length=2000)
+    contact: dict[str, str] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class FormFieldInfo(BaseModel):
+    name: str
+    label: str | None = None
+    field_type: str | None = None
+    current_value: str | None = None
+    options: list[str] = Field(default_factory=list)
+
+
+class FormInspection(BaseModel):
+    form_id: str
+    filename: str
+    fields: list[FormFieldInfo]
+    expires_in_seconds: int
+
+
+class FormFillPrepareRequest(BaseModel):
+    values: dict[str, str] = Field(default_factory=dict)
+
+
+class FormAgentPrepareRequest(BaseModel):
+    profile: dict[str, str] = Field(min_length=1)
+    notes: str | None = Field(default=None, max_length=3000)
+
+
+class ActionPreview(BaseModel):
+    action_id: str
+    action_type: AgentActionType
+    status: AgentActionStatus = "prepared"
+    version: int = 1
+    summary: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    requires_confirmation: bool = True
+    execution_target: str
+    artifact_url: str | None = None
+    expires_in_seconds: int
+
+
+class ActionConfirmRequest(BaseModel):
+    approve: bool
+    expected_version: int = Field(default=1, ge=1)
+
+
+class ActionCompleteRequest(BaseModel):
+    success: bool
+    result_summary: str = Field(min_length=1, max_length=3000)
+    external_reference: str | None = Field(default=None, max_length=500)
+    appointment_time: datetime | None = None

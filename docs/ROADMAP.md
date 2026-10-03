@@ -63,6 +63,16 @@
 
 ## v0.3 – Bürger-Workflows
 
+- [x] freier LLM-Chat mit Gesprächsverlauf
+- [x] amtliche Evidenz bei Bürger-/Rechtsfragen
+- [x] Terminaktionen: Prepare → Preview → Confirm → External Execute
+- [x] geschützter Rückkanal für externe Buchungsagenten
+- [x] ausfüllbare PDF-Formulare erkennen
+- [x] LLM-gestützte Zuordnung von Profildaten zu Formularfeldern
+- [x] PDF erst nach Bestätigung erzeugen
+- [x] optimistische Versionsprüfung gegen veraltete Bestätigungen
+- [ ] erste produktive Termin-Connectoren für konkrete Behördenportale
+
 - [ ] Jobcenter-Workflow
 - [ ] Familienleistungen
 - [ ] Kranken-/Pflegeversicherung

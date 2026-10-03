@@ -5,11 +5,14 @@ import threading
 import time
 import uuid
 
-from fastapi import FastAPI, File, HTTPException, Response, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
 from .channels import channels_info
+from .actions import ActionStore, fill_pdf_form, inspect_pdf_form, new_action
+from .agent_planning import map_profile_to_form
+from .chat import chat as chat_with_assistant
 from .documents import DocumentParseError, parse_document
 from .evidence import EvidenceEngine
 from .answer_generation import generate_grounded_explanation
@@ -27,7 +30,16 @@ from .extraction import (
     extract_requirements,
 )
 from .schemas import (
+    ActionCompleteRequest,
+    ActionConfirmRequest,
+    ActionPreview,
+    AppointmentPrepareRequest,
     AskRequest,
+    ChatRequest,
+    ChatResponse,
+    FormAgentPrepareRequest,
+    FormFillPrepareRequest,
+    FormInspection,
     ChannelsInfo,
     CivicAnswer,
     Deadline,
@@ -37,12 +49,15 @@ from .schemas import (
     RelativeDeadline,
 )
 
-VERSION = "0.2.4"
+VERSION = "0.3.0"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 MAX_DOCUMENT_PAGES = int(os.getenv("MAX_DOCUMENT_PAGES", "30"))
 DOCUMENT_ENGINE = os.getenv("DOCUMENT_ENGINE", "auto")
 DOCUMENT_TTL_SECONDS = int(os.getenv("DOCUMENT_TTL_SECONDS", "3600"))
 MAX_STORED_DOCUMENTS = int(os.getenv("MAX_STORED_DOCUMENTS", "500"))
+ACTION_TTL_SECONDS = int(os.getenv("ACTION_TTL_SECONDS", "3600"))
+MAX_AGENT_FORM_BYTES = int(os.getenv("MAX_AGENT_FORM_BYTES", str(10 * 1024 * 1024)))
+AGENT_EXECUTION_TOKEN = os.getenv("AGENT_EXECUTION_TOKEN", "").strip()
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
 
 
@@ -84,6 +99,7 @@ class DocumentStore:
 STORE = DocumentStore(DOCUMENT_TTL_SECONDS, MAX_STORED_DOCUMENTS)
 engine = EvidenceEngine()
 model_provider = build_model_provider()
+ACTION_STORE = ActionStore(ttl_seconds=ACTION_TTL_SECONDS)
 
 
 def primary_deadline(deadlines: list[Deadline], relative: list[RelativeDeadline]) -> Deadline | None:
@@ -224,6 +240,215 @@ async def evidence_search(req: EvidenceSearchRequest):
         req.limit,
         include_case_law=req.include_case_law,
     )
+
+
+
+def _analysis_for_document(document_id: str | None) -> DocumentAnalysis | None:
+    if not document_id:
+        return None
+    stored = STORE.get(document_id)
+    if not stored:
+        raise HTTPException(404, "Dokument nicht gefunden oder bereits gelöscht.")
+    return stored[1]
+
+
+@app.post("/v1/chat", response_model=ChatResponse)
+async def chat_endpoint(req: ChatRequest):
+    analysis = _analysis_for_document(req.document_id)
+    return await chat_with_assistant(
+        model_provider,
+        engine,
+        messages=req.messages,
+        language=req.language,
+        analysis=analysis,
+    )
+
+
+@app.post("/v1/actions/appointment", response_model=ActionPreview)
+def prepare_appointment(req: AppointmentPrepareRequest):
+    payload = req.model_dump(mode="json", exclude_none=True)
+    target = "openclaw_browser" if req.official_booking_url else "connector_required"
+    preview = new_action(
+        "appointment",
+        summary=f"Termin vorbereiten: {req.service}",
+        payload=payload,
+        execution_target=target,
+        ttl_seconds=ACTION_TTL_SECONDS,
+    )
+    ACTION_STORE.put_action(preview)
+    return preview
+
+
+@app.post("/v1/forms/inspect", response_model=FormInspection)
+async def inspect_form(file: UploadFile = File(...)):
+    data = await file.read(MAX_AGENT_FORM_BYTES + 1)
+    if not data:
+        raise HTTPException(400, "Leere Datei.")
+    if len(data) > MAX_AGENT_FORM_BYTES:
+        raise HTTPException(413, "Formular ist zu groß.")
+    filename = file.filename or "formular.pdf"
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(415, "Der Formular-Agent unterstützt derzeit ausfüllbare PDF-Formulare.")
+    try:
+        inspection = inspect_pdf_form(data, filename, ACTION_TTL_SECONDS, ACTION_STORE)
+    except Exception as exc:
+        raise HTTPException(422, f"PDF-Formular konnte nicht gelesen werden: {type(exc).__name__}") from exc
+    if not inspection.fields:
+        raise HTTPException(422, "In diesem PDF wurden keine ausfüllbaren Formularfelder gefunden.")
+    return inspection
+
+
+@app.post("/v1/forms/{form_id}/prepare", response_model=ActionPreview)
+def prepare_form_fill(form_id: str, req: FormFillPrepareRequest):
+    form = ACTION_STORE.get_form(form_id)
+    if not form:
+        raise HTTPException(404, "Formular nicht gefunden oder abgelaufen.")
+    allowed = {field.name for field in form.fields}
+    values = {k: v for k, v in req.values.items() if k in allowed}
+    unknown = sorted(set(req.values) - allowed)
+    if unknown:
+        raise HTTPException(422, f"Unbekannte Formularfelder: {', '.join(unknown[:8])}")
+    preview = new_action(
+        "form_fill",
+        summary=f"Formular ausfüllen: {form.filename}",
+        payload={"form_id": form_id, "filename": form.filename, "values": values},
+        execution_target="civic_core_pdf",
+        ttl_seconds=ACTION_TTL_SECONDS,
+    )
+    ACTION_STORE.put_action(preview)
+    return preview
+
+
+@app.post("/v1/forms/{form_id}/agent-prepare", response_model=ActionPreview)
+async def agent_prepare_form(form_id: str, req: FormAgentPrepareRequest):
+    form = ACTION_STORE.get_form(form_id)
+    if not form:
+        raise HTTPException(404, "Formular nicht gefunden oder abgelaufen.")
+    try:
+        mapping = await map_profile_to_form(
+            model_provider,
+            fields=form.fields,
+            profile=req.profile,
+            notes=req.notes,
+        )
+    except ModelProviderError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    preview = new_action(
+        "form_fill",
+        summary=f"Formular-Agent: {form.filename}",
+        payload={
+            "form_id": form_id,
+            "filename": form.filename,
+            "values": mapping.values,
+            "unresolved": mapping.unresolved,
+        },
+        execution_target="civic_core_pdf",
+        ttl_seconds=ACTION_TTL_SECONDS,
+    )
+    ACTION_STORE.put_action(preview)
+    return preview
+
+
+@app.get("/v1/actions/{action_id}", response_model=ActionPreview)
+def get_action(action_id: str):
+    stored = ACTION_STORE.get_action(action_id)
+    if not stored:
+        raise HTTPException(404, "Aktion nicht gefunden oder abgelaufen.")
+    return stored.preview
+
+
+@app.post("/v1/actions/{action_id}/confirm", response_model=ActionPreview)
+def confirm_action(action_id: str, req: ActionConfirmRequest):
+    stored = ACTION_STORE.get_action(action_id)
+    if not stored:
+        raise HTTPException(404, "Aktion nicht gefunden oder abgelaufen.")
+    current = stored.preview
+    if current.version != req.expected_version:
+        raise HTTPException(409, "Die Aktionsvorschau wurde zwischenzeitlich geändert.")
+    if current.status != "prepared":
+        raise HTTPException(409, f"Aktion ist bereits im Status {current.status}.")
+
+    if not req.approve:
+        updated = current.model_copy(
+            update={"status": "cancelled", "version": current.version + 1}
+        )
+        ACTION_STORE.update_action(action_id, updated)
+        return updated
+
+    artifact = None
+    artifact_name = None
+    artifact_url = None
+    new_status = "approved"
+
+    if current.action_type == "form_fill":
+        form_id = str(current.payload.get("form_id") or "")
+        form = ACTION_STORE.get_form(form_id)
+        if not form:
+            raise HTTPException(404, "Das zugehörige Formular ist abgelaufen.")
+        values = current.payload.get("values") or {}
+        try:
+            artifact = fill_pdf_form(form.data, {str(k): str(v) for k, v in values.items()})
+        except Exception as exc:
+            raise HTTPException(422, f"Formular konnte nicht ausgefüllt werden: {type(exc).__name__}") from exc
+        artifact_name = "ausgefuellt-" + form.filename
+        artifact_url = f"/v1/actions/{action_id}/artifact"
+        new_status = "completed"
+
+    updated = current.model_copy(
+        update={
+            "status": new_status,
+            "version": current.version + 1,
+            "artifact_url": artifact_url,
+        }
+    )
+    ACTION_STORE.update_action(action_id, updated, artifact=artifact, artifact_name=artifact_name)
+    return updated
+
+
+@app.get("/v1/actions/{action_id}/artifact")
+def action_artifact(action_id: str):
+    stored = ACTION_STORE.get_action(action_id)
+    if not stored or not stored.artifact:
+        raise HTTPException(404, "Kein Artefakt für diese Aktion vorhanden.")
+    filename = stored.artifact_name or "dokument.pdf"
+    return Response(
+        content=stored.artifact,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/v1/actions/{action_id}/complete", response_model=ActionPreview)
+def complete_external_action(
+    action_id: str,
+    req: ActionCompleteRequest,
+    x_agent_token: str | None = Header(default=None),
+):
+    if not AGENT_EXECUTION_TOKEN:
+        raise HTTPException(503, "Externe Agentenausführung ist nicht konfiguriert.")
+    if x_agent_token != AGENT_EXECUTION_TOKEN:
+        raise HTTPException(401, "Ungültiger Agent-Token.")
+    stored = ACTION_STORE.get_action(action_id)
+    if not stored:
+        raise HTTPException(404, "Aktion nicht gefunden oder abgelaufen.")
+    current = stored.preview
+    if current.action_type != "appointment" or current.status != "approved":
+        raise HTTPException(409, "Nur bestätigte Terminaktionen können extern abgeschlossen werden.")
+    payload = dict(current.payload)
+    payload["execution_result"] = req.result_summary
+    if req.external_reference:
+        payload["external_reference"] = req.external_reference
+    if req.appointment_time:
+        payload["appointment_time"] = req.appointment_time.isoformat()
+    updated = current.model_copy(
+        update={
+            "status": "completed" if req.success else "failed",
+            "version": current.version + 1,
+            "payload": payload,
+        }
+    )
+    ACTION_STORE.update_action(action_id, updated)
+    return updated
 
 
 @app.post("/v1/ask", response_model=CivicAnswer)

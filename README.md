@@ -21,7 +21,7 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 </p>
 </details>
 
-## Was v0.2.4 bereits kann
+## Was v0.3.0 bereits kann
 
 - PDFs, Textdateien sowie **Fotos und Scans** verarbeiten.
 - Text, Datumsangaben, Fristen und häufige Rechtsverweise erkennen.
@@ -37,7 +37,10 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - Fragen über eine einfache Weboberfläche stellen.
 - WhatsApp anbinden: Texte, Fotos und Dokumente können über die WhatsApp Cloud API in denselben Analyse-Workflow gelangen.
 - OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
-- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als reine Erklärungsschicht hinter der Evidence Engine verwenden. Ohne Konfiguration bleibt der bisherige deterministische Modus aktiv.
+- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als Erklärungsschicht hinter der Evidence Engine verwenden.
+- Mit dem LLM **frei chatten und Folgefragen stellen**; bei Behörden- und Rechtsfragen wird weiterhin amtliche Evidenz eingebunden.
+- **Termine als Agentenaktion vorbereiten** und erst nach einer expliziten Nutzerbestätigung an einen freigegebenen Browser-/Behörden-Connector übergeben.
+- **Ausfüllbare PDF-Formulare erkennen und ausfüllen**; Profildaten können per LLM auf vorhandene PDF-Felder abgebildet werden. Das fertige PDF wird erst nach Bestätigung erzeugt.
 
 ## Neu in v0.2.4
 
@@ -274,6 +277,80 @@ Dokument hochladen:
 | WHATSAPP_APP_SECRET | – | Prüfung der Meta-Webhook-Signatur; in Produktion erforderlich |
 | MAX_WHATSAPP_MEDIA_BYTES | 15728640 | maximale WhatsApp-Mediendateigröße |
 
+## Chat und Agentenaktionen
+
+v0.3 erweitert Deutschland Assistent vom reinen Erklärsystem zu einem **bestätigungspflichtigen Bürger-Agenten**.
+
+### Freier Chat
+
+Über `POST /v1/chat` kann eine Unterhaltung mit Gesprächsverlauf geführt werden. Bei allgemeinen Fragen antwortet das konfigurierte LLM. Erkennt der Core eine Behörden-, Rechts- oder Leistungsfrage, wird zusätzlich die amtliche Evidence Engine eingebunden.
+
+Beispiel:
+
+    Nutzer: Ich brauche einen neuen Personalausweis. Was muss ich tun?
+             ↓
+    Chat Router
+             ↓
+    Bürger-/Verwaltungsfrage erkannt
+             ↓
+    amtliche Evidence Engine
+             ↓
+    Deutschland-gehostetes LLM
+             ↓
+    Antwort + Quellen + mögliche nächste Aktion
+
+Aktuelle Informationen, die nicht aus angebundenen Quellen verifiziert werden können, dürfen nicht als live geprüft dargestellt werden.
+
+### Termine
+
+Terminaktionen folgen immer:
+
+    Prepare
+       ↓
+    Preview
+       ↓
+    ausdrückliche Bestätigung
+       ↓
+    Approved
+       ↓
+    externer freigegebener Connector / Browser-Agent
+       ↓
+    Result zurück an Civic Core
+
+Der Core kann einen Terminwunsch, Behörde, Ort, Zeitfenster und eine offizielle Buchungs-URL als Aktion vorbereiten. **Ohne Bestätigung wird keine externe Aktion freigegeben.**
+
+Die tatsächliche Buchung benötigt einen konkreten Connector oder Browser-Agenten für das jeweilige Behördenportal. Ein geschützter Complete-Endpunkt erlaubt einem freigegebenen Agenten, Buchungsergebnis, Referenz und Terminzeit zurückzumelden.
+
+### PDF-Formular-Agent
+
+Für ausfüllbare PDF-Formulare:
+
+    PDF hochladen
+       ↓
+    Formularfelder erkennen
+       ↓
+    Profildaten bereitstellen
+       ↓
+    LLM ordnet Daten vorhandenen Feldern zu
+       ↓
+    Vorschau
+       ↓
+    Bestätigung
+       ↓
+    ausgefülltes PDF erzeugen
+
+Der Formular-Agent darf **keine persönlichen Daten erfinden**, keine Unterschrift generieren und keine rechtlich bindende Auswahl automatisch setzen. Unklare Felder bleiben offen.
+
+Wichtige Endpunkte:
+
+- `POST /v1/chat`
+- `POST /v1/actions/appointment`
+- `POST /v1/actions/{action_id}/confirm`
+- `POST /v1/actions/{action_id}/complete`
+- `POST /v1/forms/inspect`
+- `POST /v1/forms/{form_id}/agent-prepare`
+- `GET /v1/actions/{action_id}/artifact`
+
 ## Rechtsinformationen des Bundes
 
 Die Evidence Engine nutzt die offizielle API der Rechtsinformationen des Bundes tiefer als nur für Suchtreffer:
@@ -451,14 +528,16 @@ v0.2.4 ist weiterhin eine frühe Alpha. Insbesondere:
 - Das Evidence-Gating verhindert bereits bestimmte unbelegte Modellbehauptungen, ist aber noch kein vollständiger semantischer Wahrheitsbeweis.
 - `LLM_REGION=DE` ist nur eine technische Konfiguration. Tatsächliche Datenresidenz, Zero-Retention, AVV und Unterauftragsverarbeiter müssen für den konkreten Provider separat geprüft werden.
 - Folgenreiche Bürgeraktionen wie das tatsächliche Einreichen eines Widerspruchs bleiben bewusst außerhalb der aktuellen automatischen Ausführung.
+- Terminaktionen können vorbereitet und freigegeben werden; echte Buchungen benötigen noch konkrete, geprüfte Connectoren für die jeweiligen Behördenportale.
+- Der PDF-Agent unterstützt derzeit ausfüllbare AcroForm-PDFs. Nicht-interaktive Scanformulare brauchen später eine separate Layout-/Overlay-Pipeline.
 
 Diese Punkte sind Teil der Roadmap und des geplanten öffentlichen Benchmarks.
 
 ## Status
 
-**v0.2.4 – frühe Alpha-Version.**
+**v0.3.0 – frühe Alpha-Version.**
 
-Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen, die vertiefte amtliche Rechtsinformationen-Integration sowie eine optionale evidenzbeschränkte LLM-Erklärungsschicht sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
+Die OCR-Dokumentverarbeitung, vertiefte amtliche Rechtsinformationen-Integration, freie LLM-Unterhaltung sowie bestätigungspflichtige Termin- und PDF-Formular-Agenten sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
 
 ## Lizenz
 
