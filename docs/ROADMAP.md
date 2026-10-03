@@ -1,39 +1,91 @@
 # Roadmap
 
-## v0.2 — Evidence Engine
-- [x] deterministic PDF/text parsing
-- [x] deadline, law, LeiKa and authority extraction
-- [x] Gesetze-im-Internet exact resolver
-- [x] official NeuRIS legislation search
-- [x] Bundesportal/LeiKa direct linking
-- [x] curated official benefits/services catalog
-- [x] evidence deduplication and ranking
-- [x] /v1/evidence/search and /v1/sources
-- [x] relative deadline hardening + ephemeral document store
+## v0.2.2 – Dokumentverständnis ✅
 
-## v0.2.2 — Document Intelligence
-- [x] production container installs Docling OCR
-- [x] photo/scan and text-poor-PDF OCR path
-- [x] local-only Docling configuration + model cache/prefetch hook
-- [x] structured extraction of requested documents/actions/payments
-- [x] structured Rechtsbehelfsbelehrung extraction
-- [x] NeuRIS case-law connector
-- [x] case-law evidence shown separately from statutes
-- [x] WhatsApp image/document ingestion
-- [x] Meta webhook signature verification
-- [x] document expiry + explicit DELETE
-- [x] 28 deterministic/API connector tests
+- [x] PDF-/Text-Verarbeitung
+- [x] Docling-OCR für Fotos, Scans und textarme PDFs
+- [x] explizite und relative Fristen
+- [x] Rechtsverweise und LeiKa-Erkennung
+- [x] Anforderungen wie Unterlagen, Angaben, Zahlungen und Handlungen
+- [x] Rechtsbehelfsbelehrungen
+- [x] Gesetze-im-Internet-Resolver
+- [x] NeuRIS-Gesetzgebung
+- [x] NeuRIS-Rechtsprechung
+- [x] Bundesportal-/Leistungsquellen
+- [x] Evidence Ranking
+- [x] Weboberfläche
+- [x] WhatsApp-Cloud-Adapter
+- [x] temporäre Dokumentablage mit TTL und Lösch-Endpunkt
 
-## v0.2.x hardening
-- [ ] photographed-letter OCR benchmark with diverse real-world layouts (de-identified/synthetic)
-- [ ] OCR confidence/quality gates and retry strategy
-- [ ] court/decision relevance benchmark
-- [ ] nightly official-source freshness/smoke checks
-- [ ] rate limiting and durable WhatsApp job queue
-- [ ] optional evidence-constrained explanation model
+## v0.2.3 – Behördenbrief-Benchmark
 
-## v0.3
-- [ ] reminders, forms and guided workflows
-- [ ] multilingual/voice rendering
-- [ ] human-confirmed external actions
-- [ ] privacy-preserving persistent user workspace
+- [ ] Ground-Truth-Schema
+- [ ] 200–500 synthetische/anonymisierte Behördenbriefe
+- [ ] OCR Success Rate
+- [ ] Deadline Precision / Recall
+- [ ] Requirement Extraction F1
+- [ ] Appeal Detection Accuracy
+- [ ] Legal Citation Accuracy
+- [ ] Source Retrieval Recall@5
+- [ ] Unsupported Claim Rate
+- [ ] Critical Deadline Error Rate
+- [ ] Benchmark-Report in CI
+
+## v0.2.4 – Evidence Engine 2.0
+
+- [ ] einheitliches Source-Registry-Schema
+- [ ] Source-Freshness-Monitoring
+- [ ] robustere NeuRIS-Relevanzbewertung
+- [ ] breitere Bundesportal-/LeiKa-Abdeckung
+- [ ] weitere amtliche Leistungsquellen
+- [ ] erste Civic-Knowledge-Graph-Strukturen
+- [ ] klare Versions- und Gültigkeitsinformationen pro Quelle
+
+## v0.3 – Bürger-Workflows
+
+- [ ] Jobcenter-Workflow
+- [ ] Familienleistungen
+- [ ] Kranken-/Pflegeversicherung
+- [ ] Rentenversicherung
+- [ ] Finanzamt
+- [ ] Checklisten
+- [ ] Antwortentwürfe
+- [ ] Erinnerungen
+- [ ] Human Approval vor externen Aktionen
+
+## v0.4 – Sprache und Barrierefreiheit
+
+- [ ] Einfache Sprache
+- [ ] Englisch
+- [ ] Türkisch
+- [ ] Arabisch
+- [ ] Ukrainisch
+- [ ] Russisch
+- [ ] Dari/Persisch
+- [ ] Voice
+- [ ] Accessibility-/WCAG-Tests
+
+## v0.5 – Produktionshärtung
+
+- [ ] Rate Limiting
+- [ ] dauerhafte Job Queue
+- [ ] Redis / PostgreSQL
+- [ ] verschlüsselte temporäre Ablage
+- [ ] PII-Redaction
+- [ ] Observability
+- [ ] Audit Logs
+- [ ] Backup-/Recovery-Konzept
+- [ ] Source-Monitoring
+
+## v1.0 – offene Bürger-Infrastruktur
+
+- [ ] öffentlicher reproduzierbarer Benchmark
+- [ ] belastbare Qualitätsgrenzen
+- [ ] mehrere vollständig getestete Behördenworkflows
+- [ ] dokumentierte Governance
+- [ ] Self-Hosting
+- [ ] externe Contributors
+- [ ] Datenschutz- und Sicherheitsreview
+- [ ] stabile öffentliche Schnittstellen
+
+Die ausführliche Planung steht in [PROJEKTPLAN.md](PROJEKTPLAN.md).
