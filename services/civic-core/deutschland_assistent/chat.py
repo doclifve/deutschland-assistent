@@ -88,6 +88,7 @@ async def chat(
             ),
             evidence=bundle.items,
             sources=bundle.items,
+            suggested_actions=_suggest_actions(latest),
             warnings=warnings,
             model_used=False,
         )
