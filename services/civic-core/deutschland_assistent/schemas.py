@@ -17,13 +17,27 @@ class Deadline(BaseModel):
     confidence: Confidence = "medium"
     evidence_text: str | None = None
 
+class RelativeDeadline(BaseModel):
+    """A period stated relative to an event, e.g. "innerhalb eines Monats nach Bekanntgabe"."""
+    raw: str
+    period_value: int
+    period_unit: Literal["days","weeks","months"]
+    trigger: str
+    document_date: date | None = None
+    assumed_trigger_date: date | None = None
+    estimated_end: date | None = None
+    basis: list[str] = Field(default_factory=list)
+    confidence: Confidence = "low"
+
 class DocumentAnalysis(BaseModel):
     document_id: str
     filename: str
     document_type: str
     parsing_engine: str = "basic"
     text_preview: str
+    document_date: date | None = None
     deadlines: list[Deadline] = Field(default_factory=list)
+    relative_deadlines: list[RelativeDeadline] = Field(default_factory=list)
     legal_references: list[LegalReference] = Field(default_factory=list)
     leika_ids: list[str] = Field(default_factory=list)
     authority_hint: str | None = None
@@ -65,6 +79,7 @@ class CivicAnswer(BaseModel):
     what_does_it_mean: str
     what_should_i_do: list[str] = Field(default_factory=list)
     deadline: Deadline | None = None
+    relative_deadlines: list[RelativeDeadline] = Field(default_factory=list)
     documents_needed: list[str] = Field(default_factory=list)
     missing_information: list[str] = Field(default_factory=list)
     legal_references: list[LegalReference] = Field(default_factory=list)

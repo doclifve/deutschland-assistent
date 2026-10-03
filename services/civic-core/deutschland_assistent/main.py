@@ -1,17 +1,46 @@
 from __future__ import annotations
-import os,uuid
-from fastapi import FastAPI,File,HTTPException,UploadFile
+import os,threading,time,uuid
+from fastapi import FastAPI,File,HTTPException,Response,UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from .documents import DocumentParseError,parse_document
 from .evidence import EvidenceEngine
-from .extraction import classify_document,extract_authority_hint,extract_deadlines,extract_leika_ids,extract_legal_references,extract_requested_items
-from .schemas import AskRequest,CivicAnswer,DocumentAnalysis,EvidenceBundle,EvidenceSearchRequest
+from .extraction import classify_document,extract_authority_hint,extract_deadlines,extract_document_date,extract_leika_ids,extract_legal_references,extract_relative_deadlines,extract_requested_items
+from .schemas import AskRequest,CivicAnswer,Deadline,DocumentAnalysis,EvidenceBundle,EvidenceSearchRequest,RelativeDeadline
 
-VERSION="0.2.0";MAX_UPLOAD_BYTES=int(os.getenv("MAX_UPLOAD_BYTES",str(15*1024*1024)));DOCUMENT_ENGINE=os.getenv("DOCUMENT_ENGINE","auto")
-STORE:dict[str,tuple[str,DocumentAnalysis]]={}
+VERSION="0.2.1";MAX_UPLOAD_BYTES=int(os.getenv("MAX_UPLOAD_BYTES",str(15*1024*1024)));DOCUMENT_ENGINE=os.getenv("DOCUMENT_ENGINE","auto")
+DOCUMENT_TTL_SECONDS=int(os.getenv("DOCUMENT_TTL_SECONDS","3600"));MAX_STORED_DOCUMENTS=int(os.getenv("MAX_STORED_DOCUMENTS","500"))
+CORS_ORIGINS=[o.strip() for o in os.getenv("CORS_ORIGINS","http://localhost:3000").split(",") if o.strip()]
+
+class DocumentStore:
+    """Ephemeral in-memory store. Documents expire after a TTL and the store is size-capped."""
+    def __init__(self,ttl:int,max_items:int):
+        self.ttl,self.max_items=ttl,max_items;self._items:dict[str,tuple[float,str,DocumentAnalysis]]={};self._lock=threading.Lock()
+    def _purge(self,now:float)->None:
+        for k in [k for k,(t,_,_) in self._items.items() if now-t>self.ttl]:del self._items[k]
+        while len(self._items)>self.max_items:del self._items[min(self._items,key=lambda k:self._items[k][0])]
+    def put(self,doc_id:str,text:str,analysis:DocumentAnalysis)->None:
+        with self._lock:
+            now=time.monotonic();self._items[doc_id]=(now,text,analysis);self._purge(now)
+    def get(self,doc_id:str)->tuple[str,DocumentAnalysis]|None:
+        with self._lock:
+            self._purge(time.monotonic());item=self._items.get(doc_id)
+            return (item[1],item[2]) if item else None
+    def delete(self,doc_id:str)->bool:
+        with self._lock:return self._items.pop(doc_id,None) is not None
+    def __len__(self)->int:return len(self._items)
+
+STORE=DocumentStore(DOCUMENT_TTL_SECONDS,MAX_STORED_DOCUMENTS)
+
+def primary_deadline(deadlines:list[Deadline],relative:list[RelativeDeadline])->Deadline|None:
+    if deadlines:return min(deadlines,key=lambda d:d.date)
+    estimated=[r for r in relative if r.estimated_end]
+    if estimated:
+        r=min(estimated,key=lambda r:r.estimated_end)
+        return Deadline(date=r.estimated_end,label=f"Geschätztes Fristende ({r.raw})",confidence="low",evidence_text=r.raw)
+    return None
 engine=EvidenceEngine()
 app=FastAPI(title="Deutschland Assistent API",version=VERSION,description="Evidence-first civic assistance core for Germany.")
-app.add_middleware(CORSMiddleware,allow_origins=os.getenv("CORS_ORIGINS","*").split(","),allow_credentials=False,allow_methods=["GET","POST"],allow_headers=["*"])
+app.add_middleware(CORSMiddleware,allow_origins=CORS_ORIGINS,allow_credentials=False,allow_methods=["GET","POST","DELETE"],allow_headers=["*"])
 
 @app.get("/health")
 def health():return {"status":"ok","service":"deutschland-assistent-core","version":VERSION}
@@ -32,9 +61,15 @@ async def documents(file:UploadFile=File(...)):
     filename=file.filename or "document"
     try:parsed=parse_document(data,filename,mode=DOCUMENT_ENGINE)
     except DocumentParseError as exc:raise HTTPException(415,str(exc)) from exc
-    text=parsed.text;doc_id="doc_"+uuid.uuid4().hex[:16]
-    analysis=DocumentAnalysis(document_id=doc_id,filename=filename,document_type=classify_document(text),parsing_engine=parsed.engine,text_preview=" ".join(text.split())[:3500],deadlines=extract_deadlines(text),legal_references=extract_legal_references(text),leika_ids=extract_leika_ids(text),authority_hint=extract_authority_hint(text),requested_items=extract_requested_items(text),warnings=parsed.warnings+([] if text.strip() else ["Kein verwertbarer Text erkannt."]))
-    STORE[doc_id]=(text,analysis);return analysis
+    text=parsed.text;doc_id="doc_"+uuid.uuid4().hex[:16];doc_date=extract_document_date(text);relative=extract_relative_deadlines(text,doc_date)
+    rel_warn=["Frist ist relativ formuliert, aber das Datum des Schreibens wurde nicht erkannt."] if relative and not doc_date else []
+    analysis=DocumentAnalysis(document_id=doc_id,filename=filename,document_type=classify_document(text),parsing_engine=parsed.engine,text_preview=" ".join(text.split())[:3500],document_date=doc_date,deadlines=extract_deadlines(text,doc_date),relative_deadlines=relative,legal_references=extract_legal_references(text),leika_ids=extract_leika_ids(text),authority_hint=extract_authority_hint(text),requested_items=extract_requested_items(text),warnings=parsed.warnings+rel_warn+([] if text.strip() else ["Kein verwertbarer Text erkannt."]))
+    STORE.put(doc_id,text,analysis);return analysis
+
+@app.delete("/v1/documents/{document_id}",status_code=204)
+def delete_document(document_id:str):
+    if not STORE.delete(document_id):raise HTTPException(404,"Dokument nicht gefunden.")
+    return Response(status_code=204)
 
 @app.post("/v1/evidence/search",response_model=EvidenceBundle)
 async def evidence_search(req:EvidenceSearchRequest):
@@ -45,16 +80,17 @@ async def ask(req:AskRequest):
     text=req.message;analysis=None
     if req.document_id:
         stored=STORE.get(req.document_id)
-        if not stored:raise HTTPException(404,"Dokument nicht gefunden.")
+        if not stored:raise HTTPException(404,"Dokument nicht gefunden oder bereits gelöscht.")
         text,analysis=stored
     refs=analysis.legal_references if analysis else extract_legal_references(text)
     deadlines=analysis.deadlines if analysis else extract_deadlines(text)
     leika=analysis.leika_ids if analysis else extract_leika_ids(text)
+    relative=analysis.relative_deadlines if analysis else extract_relative_deadlines(text);deadline=primary_deadline(deadlines,relative)
     query=req.message if not analysis else " ".join(x for x in [analysis.authority_hint or ""," ".join(r.raw for r in refs),analysis.document_type.replace("_"," "),req.message] if x)
     bundle=await engine.collect(query[:1800],refs,leika,10)
     if analysis:
         meaning="Das Dokument wurde gelesen und mit amtlichen Quellen abgeglichen. Explizite Fristen und Gesetzeszitate werden getrennt ausgewiesen.";steps=[]
-        if deadlines:steps.append("Prüfen Sie die erkannte Frist im Originaldokument.")
+        if deadlines or relative:steps.append("Prüfen Sie die erkannte Frist im Originaldokument.")
         if analysis.requested_items:steps.append("Stellen Sie die im Dokument verlangten Unterlagen zusammen.")
         if refs:steps.append("Vergleichen Sie die genannten Rechtsgrundlagen mit den verlinkten amtlichen Fassungen.")
         if not steps:steps.append("Prüfen Sie Absender, Anliegen und eventuell verlangte nächste Schritte im Original.")
@@ -63,4 +99,6 @@ async def ask(req:AskRequest):
         meaning="Ich habe ein konkretes Gesetzeszitat erkannt und mit amtlichen Rechtsquellen verknüpft. Für die Anwendung auf einen Einzelfall können weitere Tatsachen erforderlich sein.";steps=["Öffnen Sie die amtliche Fassung der Norm.","Beschreiben Sie den konkreten Sachverhalt, wenn Sie die Bedeutung für Ihren Fall einordnen möchten."];certainty="high"
     else:
         meaning="Ich habe amtliche Quellen zu Ihrer Frage gesucht. Die Treffer dienen als nachvollziehbare Grundlage; eine individuelle Rechtsfolge wird daraus nicht automatisch abgeleitet.";steps=["Öffnen Sie die relevantesten amtlichen Quellen.","Laden Sie ein Schreiben hoch, wenn sich die Frage auf einen konkreten Bescheid oder Brief bezieht."];certainty="medium" if bundle.items else "low"
-    return CivicAnswer(what_is_this=(f"{analysis.document_type.replace('_',' ')} · {analysis.authority_hint}" if analysis and analysis.authority_hint else ("Behördliches/administratives Dokument" if analysis else None)),what_does_it_mean=meaning,what_should_i_do=steps,deadline=deadlines[0] if deadlines else None,documents_needed=analysis.requested_items if analysis else [],legal_references=refs,evidence=bundle.items,sources=bundle.items,certainty=certainty,warnings=(analysis.warnings if analysis else [])+bundle.warnings)
+    if deadline and deadline.confidence=="low":steps.insert(0,"Das Fristende ist geschätzt. Notieren Sie, wann Sie das Schreiben tatsächlich erhalten haben, und handeln Sie vorsichtshalber bis zu diesem Datum.")
+    elif relative and not deadline:steps.insert(0,f"Im Schreiben steht eine Frist ({relative[0].raw}). Notieren Sie das Datum, an dem Sie es erhalten haben.")
+    return CivicAnswer(what_is_this=(f"{analysis.document_type.replace('_',' ')} · {analysis.authority_hint}" if analysis and analysis.authority_hint else ("Behördliches/administratives Dokument" if analysis else None)),what_does_it_mean=meaning,what_should_i_do=steps,deadline=deadline,relative_deadlines=relative,documents_needed=analysis.requested_items if analysis else [],legal_references=refs,evidence=bundle.items,sources=bundle.items,certainty=certainty,warnings=(analysis.warnings if analysis else [])+bundle.warnings)
