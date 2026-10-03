@@ -1,0 +1,151 @@
+[
+  {
+    "id": "wohnsitz-anmelden",
+    "title": "Wohnsitz anmelden",
+    "office": "Bürgeramt / Meldebehörde Ihres neuen Wohnorts",
+    "keywords": [
+      "wohnsitz anmelden",
+      "wohnung anmelden",
+      "wohnsitz",
+      "ummelden",
+      "ummeldung",
+      "umzug",
+      "umgezogen",
+      "meldebescheinigung",
+      "meldebehörde",
+      "neue adresse",
+      "neuer wohnort",
+      "nach dem umzug anmelden",
+      "anmeldung wohnsitz",
+      "anmeldung der wohnung",
+      "gezogen"
+    ],
+    "bundesportal_url": "https://verwaltung.bund.de/leistungsverzeichnis/de/leistung/99115005104001",
+    "search_query": "Wohnsitz Anmeldung",
+    "bring": [
+      "Personalausweis oder Reisepass (für alle Personen, die mit umziehen)",
+      "Wohnungsgeberbestätigung, ausgestellt von Vermieterin oder Vermieter",
+      "Ausgefülltes Anmeldeformular, falls Ihre Stadt es vorab verlangt"
+    ],
+    "notes": [
+      "Die Anmeldung muss innerhalb von zwei Wochen nach dem Einzug erfolgen."
+    ],
+    "legal": [
+      {
+        "label": "§ 17 BMG – Anmeldung, Abmeldung",
+        "url": "https://www.gesetze-im-internet.de/bmg/__17.html"
+      },
+      {
+        "label": "§ 19 BMG – Mitwirkung des Wohnungsgebers",
+        "url": "https://www.gesetze-im-internet.de/bmg/__19.html"
+      }
+    ]
+  },
+  {
+    "id": "personalausweis",
+    "title": "Personalausweis beantragen",
+    "office": "Bürgeramt / Personalausweisbehörde Ihres Wohnorts",
+    "keywords": [
+      "personalausweis",
+      "ausweis",
+      "perso",
+      "id-karte",
+      "ausweis abgelaufen",
+      "neuer ausweis"
+    ],
+    "bundesportal_url": "https://verwaltung.bund.de/leistungsverzeichnis/de/leistung/99008001012000",
+    "search_query": "Personalausweis beantragen",
+    "bring": [
+      "Bisheriger Personalausweis oder Reisepass",
+      "Digitales biometrisches Lichtbild: vom Fotostudio digital übermittelt oder vor Ort in der Behörde aufgenommen. Ausgedruckte Fotos werden seit 1. Mai 2025 nicht mehr angenommen.",
+      "Bei Namensänderung: Nachweis, z. B. Heiratsurkunde",
+      "Für Minderjährige: Einverständnis und Ausweis der weiteren sorgeberechtigten Person"
+    ],
+    "notes": [
+      "Die Gebühr hängt vom Alter ab und wird bei der Antragstellung fällig."
+    ],
+    "legal": []
+  },
+  {
+    "id": "reisepass",
+    "title": "Reisepass beantragen",
+    "office": "Bürgeramt / Passbehörde Ihres Wohnorts",
+    "keywords": [
+      "reisepass",
+      "pass",
+      "kinderreisepass",
+      "passbehörde"
+    ],
+    "bundesportal_url": "https://verwaltung.bund.de/leistungsverzeichnis/DE/leistung/99085001012000",
+    "search_query": "Reisepass beantragen",
+    "bring": [
+      "Bisheriger Reisepass oder Personalausweis",
+      "Digitales biometrisches Lichtbild: vom Fotostudio digital übermittelt oder vor Ort in der Behörde aufgenommen. Ausgedruckte Fotos werden seit 1. Mai 2025 nicht mehr angenommen.",
+      "Bei Namensänderung: Nachweis, z. B. Heiratsurkunde",
+      "Für Minderjährige: Einverständnis und Ausweis der weiteren sorgeberechtigten Person"
+    ],
+    "notes": [
+      "Planen Sie vor Reisen genug Zeit ein: Die Herstellung dauert in der Regel mehrere Wochen."
+    ],
+    "legal": []
+  },
+  {
+    "id": "fuehrungszeugnis",
+    "title": "Führungszeugnis beantragen",
+    "office": "Bürgeramt / Meldebehörde – oder online beim Bundesamt für Justiz",
+    "keywords": [
+      "führungszeugnis",
+      "fuehrungszeugnis",
+      "polizeiliches führungszeugnis",
+      "erweitertes führungszeugnis"
+    ],
+    "bundesportal_url": "https://verwaltung.bund.de/leistungsverzeichnis/de/leistung/99049001001000",
+    "search_query": "Führungszeugnis beantragen",
+    "online_alternative": {
+      "label": "Ohne Termin online beantragen (mit Online-Ausweis)",
+      "url": "https://www.fuehrungszeugnis.bund.de"
+    },
+    "bring": [
+      "Personalausweis oder Reisepass",
+      "Für ein erweitertes Führungszeugnis: schriftliche Aufforderung der Stelle, die es verlangt"
+    ],
+    "notes": [
+      "Das Führungszeugnis wird nur an die antragstellende Person geschickt.",
+      "Online geht es ohne Termin, wenn Ihr Ausweis mit aktivierter Online-Funktion und ein NFC-fähiges Smartphone vorhanden sind."
+    ],
+    "legal": []
+  },
+  {
+    "id": "fahrzeug-zulassen",
+    "title": "Fahrzeug zulassen",
+    "office": "Kfz-Zulassungsstelle Ihres Wohnorts",
+    "keywords": [
+      "zulassung",
+      "zulassen",
+      "auto",
+      "fahrzeug",
+      "auto anmelden",
+      "auto ummelden",
+      "fahrzeug anmelden",
+      "fahrzeug ummelden",
+      "kfz",
+      "kennzeichen",
+      "zulassungsstelle",
+      "neuwagen",
+      "gebrauchtwagen"
+    ],
+    "bundesportal_url": null,
+    "search_query": "Fahrzeug Zulassung",
+    "bring": [
+      "Personalausweis oder Reisepass",
+      "eVB-Nummer Ihrer Kfz-Versicherung",
+      "Zulassungsbescheinigung Teil I und Teil II (bei Neuwagen: Teil II bzw. Übereinstimmungsbescheinigung)",
+      "SEPA-Lastschriftmandat für die Kfz-Steuer",
+      "Nachweis über die gültige Hauptuntersuchung, sofern nicht aus den Papieren ersichtlich"
+    ],
+    "notes": [
+      "Viele Zulassungsstellen bieten die Zulassung auch online an (i-Kfz). Ihre Zulassungsstelle nennt die verbindliche Unterlagenliste."
+    ],
+    "legal": []
+  }
+]
