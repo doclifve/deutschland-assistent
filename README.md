@@ -4,311 +4,320 @@
 
 # Deutschland Assistent 🇩🇪
 
-**Open-source civic assistance for Germany: understand documents, laws, public services and next steps — with evidence.**
+**Open-Source-Bürgerassistent für Deutschland: Behördenpost, Gesetze, Leistungen und nächste Schritte verständlich machen – mit nachvollziehbaren Quellen.**
 
-Deutschland Assistent is an open-source, evidence-first civic assistant. It is designed to make German public administration, laws and personal documents easier to understand without requiring users to know legal terms, agency names or AI prompting.
+Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent. Ziel ist, deutsche Verwaltung, Gesetze und persönliche Behördenpost verständlicher zu machen, ohne dass Nutzerinnen und Nutzer juristische Fachbegriffe, Behördenstrukturen oder besondere KI-Prompts kennen müssen.
 
-> **Core principle:** The model is not the source of truth. Official sources and the user's document are.
+> **Grundprinzip:** Das Modell ist nicht die Quelle der Wahrheit. Maßgeblich sind das Originaldokument und amtliche Quellen.
 
 <p align="center">
-  <img src="docs/screenshots/iphone.png" alt="Deutschland Assistent auf dem iPhone: Startseite mit animiertem Logo, „So einfach.“ in drei Schritten und Ergebnis mit geschätzter Widerspruchsfrist und amtlichen Quellen" width="860" />
+  <img src="docs/screenshots/iphone.png" alt="Deutschland Assistent auf dem iPhone" width="860" />
 </p>
 
 <details>
-<summary>iPad</summary>
+<summary>iPad-Ansicht</summary>
 <p align="center">
-  <img src="docs/screenshots/ipad.png" alt="Deutschland Assistent auf dem iPad: Startseite mit animiertem Logo und der Überschrift „Behördenpost. Endlich verständlich.“" width="760" />
+  <img src="docs/screenshots/ipad.png" alt="Deutschland Assistent auf dem iPad" width="760" />
 </p>
 </details>
 
-## What v0.2.2 can do
+## Was v0.2.2 bereits kann
 
-- Upload PDFs, text files **and photos/scans**.
-- Extract text, dates, deadlines and common legal references.
-- Analyze documents without any LLM or API key.
-- Use **Docling locally** for OCR and layout-aware parsing of photos, scans and text-poor PDFs; remote Docling services are disabled.
-- Extract deadlines, legal references, LeiKa identifiers, authority hints, **requested documents/actions/payments** and **Rechtsbehelfsbelehrungen** deterministically.
-- Recognise relative deadlines from *Rechtsbehelfsbelehrungen* ("innerhalb eines Monats nach Bekanntgabe") and estimate the end date conservatively from the letter date (4-day postal fiction since 1 Jan 2025, §§ 187 f. BGB, weekend shift). Estimates are always flagged `confidence: low` with their calculation basis.
-- Hold uploaded documents only in memory, with an expiry (`DOCUMENT_TTL_SECONDS`, default 1 h), a size cap and an explicit `DELETE /v1/documents/{id}`.
-- Resolve explicit law citations through **Gesetze im Internet**.
-- Search current federal legislation **and federal case law** through the official **NeuRIS** API, with a direct-law fallback because NeuRIS is still in test phase and incomplete.
-- Match common benefits/services against an auditable registry of official federal sources.
-- Return structured, ranked evidence with every important source.
-- Ask questions through a simple web interface.
-- Connect via WhatsApp: the web app shows a button and QR code from `GET /v1/channels`; the adapter answers photos, PDFs and questions in the chat.
-- Provide an OpenClaw skill for WhatsApp/Telegram/Signal-style access.
-- Accept text, **photos and documents over the WhatsApp Cloud API adapter**, verify Meta webhook signatures and forward media through the same evidence-first document pipeline.
-- Keep channel integrations separate from the civic core.
+- PDFs, Textdateien sowie **Fotos und Scans** verarbeiten.
+- Text, Datumsangaben, Fristen und häufige Rechtsverweise erkennen.
+- Dokumente auch ohne LLM oder externen Modell-API-Schlüssel analysieren.
+- **Docling lokal** für OCR und Layout-Erkennung bei Fotos, Scans und textarmen PDFs einsetzen; entfernte Docling-Dienste sind deaktiviert.
+- Fristen, Rechtsverweise, LeiKa-IDs, Behördenhinweise sowie **angeforderte Unterlagen, Handlungen, Zahlungen** und **Rechtsbehelfsbelehrungen** strukturiert erkennen.
+- Relative Fristen wie „innerhalb eines Monats nach Bekanntgabe“ erkennen und konservativ ein mögliches Fristende schätzen. Geschätzte Fristen werden ausdrücklich als unsicher gekennzeichnet.
+- Hochgeladene Dokumente standardmäßig nur temporär im Speicher halten, mit Ablaufzeit, Größenbegrenzung und Lösch-Endpunkt.
+- Explizite Gesetzeszitate direkt mit **Gesetze im Internet** verknüpfen.
+- Bundesrecht und Rechtsprechung über die öffentliche **NeuRIS**-Schnittstelle durchsuchen; exakte Gesetzeszitate behalten einen direkten amtlichen Fallback.
+- Häufige Leistungen gegen ein nachvollziehbares Register offizieller Quellen abgleichen.
+- Strukturierte, gerankte Evidenz zu einer Antwort zurückgeben.
+- Fragen über eine einfache Weboberfläche stellen.
+- WhatsApp anbinden: Texte, Fotos und Dokumente können über die WhatsApp Cloud API in denselben Analyse-Workflow gelangen.
+- OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
 
-### What a document answer contains
+## Was eine Dokumentantwort enthalten soll
 
-For a photographed authority letter the API can now return, separately:
+Nach dem Upload oder Foto eines Behördenbriefs kann der Assistent Informationen getrennt ausgeben:
 
-- the document/authority type,
-- explicit and relative deadlines,
-- requested documents, information, payments or actions,
-- detected appeal/remedy instructions,
-- cited statutes,
-- relevant official legislation and case law,
-- a citizen-facing next-step list with uncertainty preserved.
+- **Was ist das für ein Schreiben?**
+- **Was bedeutet es?**
+- **Welche Frist wurde erkannt?**
+- **Was verlangt die Behörde?**
+- **Welche Unterlagen fehlen?**
+- **Gibt es einen Rechtsbehelf wie Widerspruch oder Klage?**
+- **Welche Rechtsgrundlagen werden genannt?**
+- **Welche amtlichen Quellen passen dazu?**
+- **Was sind sinnvolle nächste Schritte?**
+- **Was ist noch unsicher oder unklar?**
 
-## Product idea
+## Leitstern des Projekts
 
-A citizen should be able to send a photo or PDF and get:
+Der wichtigste End-to-End-Anwendungsfall ist bewusst einfach:
 
-1. **What is this?**
-2. **What does it mean?**
-3. **What do I need to do?**
-4. **Is there a deadline?**
-5. **Which law/source supports this?**
-6. **What is unclear or missing?**
+    Behördenbrief fotografieren
+            ↓
+    Dokument verstehen
+            ↓
+    Fristen und Anforderungen erkennen
+            ↓
+    amtliche Quellen zuordnen
+            ↓
+    verständlich erklären
+            ↓
+    nächste Schritte vorbereiten
 
-The UI should remain simple even as the backend becomes more capable.
+Alles, was diesen Ablauf zuverlässiger, verständlicher oder sicherer macht, hat Vorrang vor zusätzlicher Oberfläche.
 
-## Architecture
+## Architektur
 
-```text
-                      Citizen
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-       Web            OpenClaw       WhatsApp Cloud
-        │          (WA/TG/Signal)          │
-        └────────────────┼────────────────┘
-                         ▼
-                  Channel Gateway
-                         │
-                         ▼
-              Deutschland Assistent Core
-       Intent → Document → Retrieval → Evidence
-                         │
-              ┌──────────┼──────────┐
-              ▼          ▼          ▼
-           Docling     Legal      Services
-             OCR      sources      sources
-                         │
-                         ▼
-                   Answer schema
-                         │
-                         ▼
-                  Human-readable UI
-```
+                          Bürger:in
+                              │
+            ┌─────────────────┼─────────────────┐
+            │                 │                 │
+           Web            OpenClaw          WhatsApp
+            │          optionaler Gateway       │
+            └─────────────────┼─────────────────┘
+                              ▼
+                      Channel Gateway
+                              │
+                              ▼
+                  Deutschland Assistent Core
+        Intent → Dokument → Retrieval → Evidence
+                              │
+                 ┌────────────┼────────────┐
+                 ▼            ▼            ▼
+              Docling      Rechtsquellen  Leistungen
+                OCR
+                              │
+                              ▼
+                       Evidence Engine
+                              │
+                              ▼
+                    strukturierte Antwort
+                              │
+                              ▼
+                      verständliche Ausgabe
 
-### Architectural rules
+### Architekturregeln
 
-- **Channels are adapters.** OpenClaw/WhatsApp do not contain legal logic.
-- **Evidence is first-class.** Claims point back to a document location or official source.
-- **Actions require confirmation.** v0.1 does not autonomously submit applications, objections, cancellations or other legally relevant declarations.
-- **No provider lock-in.** The core works without an LLM; model providers can be added behind an interface.
-- **Minimal retention.** Personal documents should be processed ephemerally by default in production.
+- **Kanäle sind Adapter.** WhatsApp, OpenClaw oder Web enthalten keine eigene Rechtslogik.
+- **Evidenz ist ein Kernobjekt.** Wichtige Aussagen sollen auf Dokumentstellen oder amtliche Quellen zurückführbar sein.
+- **Folgenreiche Aktionen brauchen Bestätigung.** Anträge, Widersprüche, Kündigungen oder andere rechtlich relevante Erklärungen werden nicht autonom abgeschickt.
+- **Kein Modell-Lock-in.** Der deterministische Kern funktioniert ohne LLM; Modelle können hinter einer Provider-Schnittstelle ergänzt werden.
+- **Minimale Datenhaltung.** Persönliche Dokumente sollen standardmäßig nur so lange gespeichert werden, wie es für die Verarbeitung nötig ist.
+- **Unsicherheit bleibt sichtbar.** Eine geschätzte Frist oder ein semantischer Suchtreffer darf nicht wie eine amtlich feststehende Tatsache aussehen.
 
-## Quick start
+## Projektplan
 
-### Option A — Docker
+Die ausführliche Planung liegt in [docs/PROJEKTPLAN.md](docs/PROJEKTPLAN.md).
 
-```bash
-cp .env.example .env
-docker compose up --build
-```
+| Phase | Ziel |
+|---|---|
+| **v0.2.3** | Öffentlicher Behördenbrief-Benchmark und messbare Qualitätsmetriken |
+| **v0.2.4** | Evidence Engine 2.0 mit breiterer amtlicher Wissensschicht und Source Monitoring |
+| **v0.3** | Bürger-Workflows: von „verstehen“ zu „vorbereitet handeln“ |
+| **v0.4** | Mehrsprachigkeit, Einfache Sprache und Barrierefreiheit |
+| **v0.5** | Produktionshärtung, Skalierung, Observability und Datenschutz |
+| **v1.0** | Belastbare offene Bürger-Infrastruktur für Deutschland |
 
-Then open:
+Die kompakte Release-Roadmap steht in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Schnellstart
+
+### Variante A – Docker
+
+    cp .env.example .env
+    docker compose up --build
+
+Danach:
 
 - Web: http://localhost:3000
-- API docs: http://localhost:8000/docs
-- Health: http://localhost:8000/health
+- API-Dokumentation: http://localhost:8000/docs
+- Healthcheck: http://localhost:8000/health
 
-### Option B — without Docker
+### Variante B – ohne Docker
 
-Requires Python 3.11+ (on macOS: `python3.12`, not `python`) and Node.js 20+.
+Benötigt Python 3.11+ und Node.js 20+.
 
-Backend, in one terminal:
+Backend:
 
-```bash
-cd services/civic-core
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-python -m uvicorn deutschland_assistent.main:app --reload --port 8000
-```
+    cd services/civic-core
+    python3.12 -m venv .venv
+    source .venv/bin/activate
+    pip install -e '.[dev]'
+    python -m uvicorn deutschland_assistent.main:app --reload --port 8000
 
-`python -m uvicorn` makes sure the server runs from the virtual environment, even if an older global `uvicorn` is installed.
+Weboberfläche:
 
-Web interface, in a second terminal:
+    cd apps/web
+    npm install
+    npm run dev
 
-```bash
-cd apps/web
-npm install
-npm run dev
-```
+Docling/OCR lokal installieren:
 
-Then open http://localhost:3000 (API docs: http://localhost:8000/docs).
+    pip install -e '.[docling]'
 
-For Docling/OCR support:
+## Beispiel-API
 
-```bash
-pip install -e '.[docling]'
-```
+Frage stellen:
 
-## Example API
+    curl -X POST http://localhost:8000/v1/ask \
+      -H 'Content-Type: application/json' \
+      -d '{"message":"Was bedeutet § 60 SGB I?","language":"de"}'
 
-```bash
-curl -X POST http://localhost:8000/v1/ask \
-  -H 'Content-Type: application/json' \
-  -d '{"message":"Was bedeutet § 60 SGB I?","language":"de"}'
-```
+Dokument hochladen:
 
-Upload a PDF:
+    curl -X POST http://localhost:8000/v1/documents \
+      -F 'file=@bescheid.pdf'
 
-```bash
-curl -X POST http://localhost:8000/v1/documents \
-  -F 'file=@bescheid.pdf'
-```
+## Wichtige API-Endpunkte
 
-## Evidence Engine API
+- POST /v1/evidence/search – amtliche Wissensschicht durchsuchen.
+- GET /v1/sources – Quellen, Rollen und Status anzeigen.
+- GET /v1/channels – öffentliche Verbindungsdaten für Kommunikationskanäle ausgeben.
+- POST /v1/documents – Dokument analysieren und strukturierte Fakten extrahieren.
+- DELETE /v1/documents/{id} – hochgeladenes Dokument vor Ablauf der TTL löschen.
+- POST /v1/ask – Dokumentinformationen und amtliche Evidenz zu einer Antwort verbinden.
 
-- `POST /v1/evidence/search` — search the official-source layer directly.
-- `GET /v1/sources` — inspect source roles/status.
-- `GET /v1/channels` — public connection details for messaging channels (WhatsApp number and `wa.me` link). Never contains tokens or secrets.
-- `POST /v1/documents` — parse a citizen document and extract deterministic facts.
-- `DELETE /v1/documents/{id}` — remove an uploaded document before it expires.
-- `POST /v1/ask` — combine document facts with official evidence.
+## Konfiguration
 
-## Configuration
-
-| Variable | Default | Purpose |
+| Variable | Standard | Bedeutung |
 |---|---|---|
-| `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API |
-| `DOCUMENT_ENGINE` | `auto` | `basic`, `docling` or `auto` |
-| `MAX_UPLOAD_BYTES` | `15728640` | Upload size limit |
-| `MAX_DOCUMENT_PAGES` | `30` | Maximum pages per document |
-| `DOCLING_ARTIFACTS_PATH` | `/opt/docling-models` | Local Docling model cache |
-| `PREFETCH_DOCLING_MODELS` | `0` | Set to `1` at image build time to prefetch Docling models |
-| `DOCUMENT_TTL_SECONDS` | `3600` | How long an uploaded document stays in memory |
-| `MAX_STORED_DOCUMENTS` | `500` | Upper bound for documents held at once |
-| `WHATSAPP_PUBLIC_NUMBER` | – | Public WhatsApp number in E.164 format (`+4915123456789`). Enables the WhatsApp section and QR code in the web app; empty hides it |
-| `WHATSAPP_GREETING` | `Hallo` | Text pre-filled in the chat when someone opens the `wa.me` link |
-| `WHATSAPP_APP_SECRET` | – | Verifies Meta's `X-Hub-Signature-256`; required when `APP_ENV=production` |
-| `MAX_WHATSAPP_MEDIA_BYTES` | `15728640` | Maximum WhatsApp media size accepted by the adapter |
+| CORS_ORIGINS | http://localhost:3000 | erlaubte Origins |
+| DOCUMENT_ENGINE | auto | basic, docling oder auto |
+| MAX_UPLOAD_BYTES | 15728640 | maximale Uploadgröße |
+| MAX_DOCUMENT_PAGES | 30 | maximale Seitenzahl pro Dokument |
+| DOCLING_ARTIFACTS_PATH | /opt/docling-models | lokaler Docling-Modellcache |
+| PREFETCH_DOCLING_MODELS | 0 | Docling-Modelle beim Image-Build vorladen |
+| DOCUMENT_TTL_SECONDS | 3600 | Verweildauer eines Dokuments im Speicher |
+| MAX_STORED_DOCUMENTS | 500 | maximale Zahl gleichzeitig gespeicherter Dokumente |
+| WHATSAPP_PUBLIC_NUMBER | – | öffentliche WhatsApp-Nummer im E.164-Format |
+| WHATSAPP_GREETING | Hallo | vorausgefüllte Begrüßung im Chat |
+| WHATSAPP_APP_SECRET | – | Prüfung der Meta-Webhook-Signatur; in Produktion erforderlich |
+| MAX_WHATSAPP_MEDIA_BYTES | 15728640 | maximale WhatsApp-Mediendateigröße |
 
 ## WhatsApp
 
 <p align="center">
-  <img src="docs/screenshots/whatsapp.png" alt="WhatsApp-Verbindung: Abschnitt „Einfach per WhatsApp.“ in der Web-App, Begrüßung im Chat und Antwort auf ein fotografiertes Schreiben mit Frist, nächsten Schritten und amtlicher Quelle" width="860" />
+  <img src="docs/screenshots/whatsapp.png" alt="WhatsApp-Verbindung des Deutschland Assistent" width="860" />
 </p>
 
-Citizens can use the assistant directly in WhatsApp: send a photo or PDF of a letter, optionally with a question, and get the deadline, next steps and official sources back as a chat message. *(The chat on the right is a schematic rendering of the adapter's real reply text; in WhatsApp it appears in the usual chat view.)*
+Über WhatsApp kann eine Person einen Text, ein Foto oder ein PDF senden. Der Adapter übergibt die Nachricht an denselben Dokument- und Evidence-Workflow wie die Weboberfläche und sendet die strukturierte Antwort zurück.
 
-How the pieces connect:
+    Web-App ──GET /v1/channels──▶ Civic Core
+    WhatsApp ──Webhook──▶ WhatsApp-Cloud-Adapter ──▶ /v1/documents + /v1/ask
+                                                 │
+                                                 └──▶ WhatsApp Cloud API
 
-```text
-Web app ──GET /v1/channels──▶ Civic Core          (public number, wa.me link → button + QR code)
-WhatsApp ──webhook──▶ whatsapp-cloud adapter ──▶ Civic Core /v1/documents, /v1/ask
-                              │
-                              └──▶ WhatsApp Cloud API (reply)
-```
+### Einrichtung
 
-- **Web app:** shows "Einfach per WhatsApp." with an *In WhatsApp öffnen* button and, on tablet and desktop, a QR code — only when `WHATSAPP_PUBLIC_NUMBER` is set.
-- **Adapter** (`channels/whatsapp-cloud/`): verifies Meta's webhook signature, accepts text, photos and PDFs, answers greetings such as "Hallo" or "Hilfe" with a short how-to, and replies with the core's answer.
+1. In der Meta-Entwickleroberfläche eine App mit dem Produkt **WhatsApp** erstellen und eine Geschäftsnummer registrieren.
+2. Die nötigen Werte in .env hinterlegen.
+3. Stack inklusive Adapter starten:
 
-### Setting it up
+       docker compose --profile whatsapp up --build
 
-1. In the Meta developer dashboard, create an app with the **WhatsApp** product and register a business phone number. Note the *phone number ID*, a permanent *access token* and the app's *app secret*.
-2. Fill in `.env`:
-   ```bash
-   WHATSAPP_PUBLIC_NUMBER=+4915123456789   # the number people write to
-   WHATSAPP_PHONE_NUMBER_ID=...
-   WHATSAPP_ACCESS_TOKEN=...
-   WHATSAPP_APP_SECRET=...
-   WHATSAPP_VERIFY_TOKEN=<a long random string>
-   ```
-3. Start everything including the adapter:
-   ```bash
-   docker compose --profile whatsapp up --build
-   ```
-4. Expose the adapter over HTTPS (for local testing e.g. with a tunnel such as `cloudflared` or `ngrok` pointing at port 8010) and enter `https://<your-host>/webhook` plus your `WHATSAPP_VERIFY_TOKEN` as the webhook in the Meta dashboard. Subscribe to the **messages** field.
-5. Send "Hallo" to your number. You should get the welcome message back.
+4. Den Adapter über HTTPS erreichbar machen und /webhook in Meta hinterlegen.
+5. Eine Nachricht oder ein Dokument an die Nummer senden.
 
-Messages pass through WhatsApp (Meta), so the privacy notice in the web app says so. Documents are deleted from the core after `DOCUMENT_TTL_SECONDS`.
+**Hinweis:** WhatsApp ist ein externer Dienst von Meta. Eine Nutzung über WhatsApp ist daher datenschutztechnisch nicht identisch mit einem lokal oder selbst gehosteten Web-Upload.
 
 ## OpenClaw
 
-The repository includes an installable OpenClaw skill under `channels/openclaw/deutschland-assistent/`.
+Der optionale OpenClaw-Skill liegt unter channels/openclaw/deutschland-assistent/.
 
-```bash
-openclaw skills install ./channels/openclaw/deutschland-assistent --as deutschland-assistent
-```
+    openclaw skills install ./channels/openclaw/deutschland-assistent --as deutschland-assistent
+    export DEUTSCHLAND_ASSISTENT_API=http://localhost:8000
 
-Set:
+Die Integration bleibt bewusst schmal: Sie leitet Bürgerfragen und Dokumentanalysen an den Civic Core weiter. Unbeschränkter Shell-, Browser- oder Dateisystemzugriff gehört nicht in einen öffentlich erreichbaren Agenten.
 
-```bash
-export DEUTSCHLAND_ASSISTENT_API=http://localhost:8000
-```
+## Repository-Struktur
 
-The OpenClaw integration is intentionally narrow: it forwards civic questions and document-analysis requests to the core API. Keep unrestricted shell/browser/file tools disabled for public-facing agents.
+    apps/web/                                   Bürgeroberfläche
+    services/civic-core/                        FastAPI-Kern
+      deutschland_assistent/extraction.py       deterministische Extraktion
+      deutschland_assistent/evidence.py         amtliche Evidence Engine
+      deutschland_assistent/documents.py        PDF-/OCR-Dokumentverarbeitung
+      deutschland_assistent/schemas.py          Antwort- und Evidenzschema
+    channels/openclaw/                          optionaler OpenClaw-Skill
+    channels/whatsapp-cloud/                    WhatsApp-Cloud-Adapter
+    docs/                                       Architektur, Quellen, Roadmap, Projektplan
 
-For current OpenClaw channel setup, see the upstream OpenClaw documentation. WhatsApp is an optional official OpenClaw channel plugin; production public deployments should also consider the official WhatsApp Cloud API adapter included here.
+## Amtliche Datenquellen
 
-## Repository layout
+Die Quellenstrategie ist bewusst konservativ. Bevor eine Quelle als maßgeblich behandelt wird, sollen Herkunft, Zuständigkeit, Format und Aktualität nachvollziehbar sein.
 
-```text
-apps/web/                                   Minimal citizen-facing web UI
-services/civic-core/                        FastAPI civic core
-  deutschland_assistent/extraction.py       Deterministic extraction (references, deadlines, LeiKa)
-  deutschland_assistent/evidence.py         Official-source Evidence Engine (Gesetze im Internet, NeuRIS, Bundesportal)
-  deutschland_assistent/documents.py        Document parsing (pypdf, optional Docling)
-  deutschland_assistent/schemas.py          Answer and evidence schema
-channels/openclaw/                          Installable OpenClaw skill
-channels/whatsapp-cloud/                    Official WhatsApp Cloud API adapter scaffold
-docs/                                       Architecture, security, source policy
-```
+Aktuell bzw. vorgesehen:
 
-Planned (not yet in the repository): `skills/` for domain workflows, `evals/` for safety and quality tests.
+- **Gesetze im Internet**
+- **Rechtsinformationen des Bundes / NeuRIS**
+- **Bundesportal / LeiKa**
+- **Bundesagentur für Arbeit / Familienkasse**
+- **Deutsche Rentenversicherung**
+- **Bundesministerium für Gesundheit**
+- weitere amtliche Bundes-, Landes- und Kommunalquellen
 
-## Data sources
+Details: [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)
 
-The initial source registry is deliberately conservative and points to official German sources. Connector code should only be promoted to `authoritative` once its API/format contract is pinned and tested.
+## Sicherheit und rechtliche Grenzen
 
-Planned/initial sources include:
+Deutschland Assistent soll **Informationszugang und Unterstützung** bieten, aber keine autonome Rechtsentscheidung treffen.
 
-- Gesetze im Internet
-- Rechtsinformationssystem des Bundes (NeuRIS / recht.bund.de)
-- Bundesportal
-- Bundesagentur für Arbeit
-- Deutsche Rentenversicherung
+Bei rechtlich relevanten Aktionen gilt:
 
-See [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md).
+    Vorbereiten
+       ↓
+    Vorschau
+       ↓
+    ausdrückliche Bestätigung
+       ↓
+    Ausführen
 
-## Safety and legal boundaries
+Siehe außerdem:
 
-This project is designed for **information access and assistance**, not autonomous legal decision-making. It must not claim that a user definitely has or does not have a legal entitlement based solely on model output. High-impact actions must be previewed and explicitly confirmed by a human.
+- [Sicherheit](SECURITY.md)
+- [Quellenrichtlinie](SOURCE_POLICY.md)
+- [Modellrichtlinie](MODEL_POLICY.md)
+- [Transparenz](TRANSPARENCY.md)
+- [Threat Model](docs/THREAT_MODEL.md)
 
-See:
+## Mitmachen
 
-- [Security](SECURITY.md)
-- [Source policy](SOURCE_POLICY.md)
-- [Model policy](MODEL_POLICY.md)
-- [Transparency](TRANSPARENCY.md)
-- [Threat model](docs/THREAT_MODEL.md)
+Beiträge sind ausdrücklich willkommen. Besonders hilfreich sind:
 
-## Development
+- neue amtliche Quellen und Connectoren,
+- synthetische oder vollständig anonymisierte Testdokumente,
+- bessere Extraktion von Fristen und Behördenanforderungen,
+- Übersetzungen und Einfache Sprache,
+- Accessibility,
+- Sicherheitsprüfungen,
+- Evaluations- und Benchmarking-Arbeit.
 
-```bash
-make test
-```
+Bitte keine echten Bürgerdokumente, Zugangsdaten oder personenbezogenen Daten committen.
 
-The deterministic extraction tests cover explicit and relative deadlines, document dates and legal references. Add an eval before adding a new high-impact workflow.
+Siehe [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Entwicklung und Tests
+
+    make test
+
+Neue Funktionen mit potenziell großen Folgen für Bürgerinnen und Bürger sollten nicht nur neue Features, sondern auch passende Tests und Evaluationen mitbringen.
 
 ## Status
 
-**v0.2.2 early alpha.** OCR document intelligence, structured demands/appeal extraction and NeuRIS case-law retrieval are implemented; APIs and schemas may still change.
+**v0.2.2 – frühe Alpha-Version.**
 
-## License
+Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen sowie die amtliche Evidence Engine sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
 
-Apache-2.0 for original project code unless a file says otherwise. External components and data sources retain their own licenses and terms.
+## Lizenz
 
+Eigener Projektcode steht – sofern in einzelnen Dateien nicht anders angegeben – unter **Apache-2.0**. Externe Komponenten und Datenquellen behalten ihre jeweiligen Lizenzen und Nutzungsbedingungen.
 
-## Logo motion
+## Logo-Animation
 
-The logo is intentionally alive: the three black, red and gold circles breathe apart and back together with a slight phase shift (3 s cycle, 0.3 s offset) while the whole cluster rotates slowly (12 s). Red and gold are slightly translucent, so their overlaps change color as the circles move. Motion is disabled automatically when the operating system requests reduced motion.
+Das Logo ist bewusst lebendig: Die drei Kreise in Schwarz, Rot und Gold bewegen sich zeitversetzt auseinander und wieder zusammen, während sich der gesamte Cluster langsam dreht. Durch die Überlagerungen entstehen wechselnde Farbmischungen.
 
-The README uses `assets/logo-animated.svg`, a self-contained animated SVG (CSS only, no scripts), so it also animates on GitHub. `assets/logo.svg` remains the static version for places that cannot show animation. The animated logo has a transparent background; in dark mode the black circle gets a subtle light outline so it stays visible.
+Die README verwendet assets/logo-animated.svg. Die Web-App nutzt eine eigene CSS-Animation. Bei aktivierter Systemeinstellung „Bewegung reduzieren“ wird die Bewegung entsprechend reduziert bzw. deaktiviert.
