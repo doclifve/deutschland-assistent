@@ -134,3 +134,16 @@ class CivicAnswer(BaseModel):
         "Informationshilfe, keine individuelle Rechtsberatung oder Behördenentscheidung. "
         "Maßgeblich sind Originaldokumente und amtliche Quellen."
     )
+
+
+class WhatsAppChannel(BaseModel):
+    """Public connection details for the WhatsApp channel. Contains nothing secret."""
+
+    enabled: bool = False
+    display_number: str | None = None
+    link: str | None = None
+    greeting: str = "Hallo"
+
+
+class ChannelsInfo(BaseModel):
+    whatsapp: WhatsAppChannel = Field(default_factory=WhatsAppChannel)

@@ -1,10 +1,12 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_CIVIC_API_URL || "http://localhost:8000";
 
 type View = "home" | "loading" | "result";
+
+type WhatsAppChannel = { enabled: boolean; display_number: string | null; link: string | null; greeting: string };
 
 const DOC_TYPES: Record<string, string> = {
   authority_decision: "Bescheid",
@@ -60,6 +62,27 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const howRef = useRef<HTMLElement>(null);
+  const [whatsapp, setWhatsapp] = useState<WhatsAppChannel | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
+
+  // Public channel details come from the API; the section only shows when a number is configured.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(API + "/v1/channels")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(async (data) => {
+        const wa: WhatsAppChannel | undefined = data?.whatsapp;
+        if (cancelled || !wa?.enabled || !wa.link) return;
+        setWhatsapp(wa);
+        const QRCode = (await import("qrcode")).default;
+        const url = await QRCode.toDataURL(wa.link, { margin: 1, width: 560, color: { dark: "#1D1D1F", light: "#FFFFFF" } });
+        if (!cancelled) setQr(url);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function askApi(message: string, documentId?: string) {
     const r = await fetch(API + "/v1/ask", {
@@ -373,6 +396,38 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {whatsapp?.link && (
+        <section className="section whatsapp" id="whatsapp">
+          <div className="whatsapp-grid">
+            <div>
+              <span className="whatsapp-icon" aria-hidden="true">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1D1D1F" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-4.2A8 8 0 1 1 20 11.5z" /><path d="M9 10h6M9 13.5h4" /></svg>
+              </span>
+              <h2 className="section-title">Einfach per WhatsApp.</h2>
+              <p className="section-sub">Brief fotografieren, in den Chat schicken. Die Antwort kommt direkt zurück.</p>
+              <ol className="whatsapp-steps">
+                <li><span className="step-num" style={{ background: "#000000" }}>1</span><span><strong>Chat öffnen.</strong> WhatsApp startet mit unserer Nummer.</span></li>
+                <li><span className="step-num" style={{ background: "#DD0000" }}>2</span><span><strong>Foto schicken.</strong> Brief oder PDF, gern mit einer Frage.</span></li>
+                <li><span className="step-num step-num-gold">3</span><span><strong>Antwort lesen.</strong> Frist, nächste Schritte und amtliche Quellen.</span></li>
+              </ol>
+              <a className="button whatsapp-button" href={whatsapp.link} target="_blank" rel="noreferrer">In WhatsApp öffnen</a>
+              <p className="whatsapp-fine">
+                Nachrichten laufen über WhatsApp (Meta). Ihre Dokumente löschen wir nach spätestens einer Stunde.
+              </p>
+            </div>
+            <div className="whatsapp-qr">
+              {qr ? (
+                <img src={qr} width={280} height={280} alt={`QR-Code: WhatsApp-Chat mit ${whatsapp.display_number}`} />
+              ) : (
+                <div className="qr-placeholder" aria-hidden="true" />
+              )}
+              <p className="qr-caption">Mit der Handykamera scannen</p>
+              <p className="qr-number">{whatsapp.display_number}</p>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="section section-grey section-ask">
         <h2 className="section-title">Oder einfach fragen.</h2>

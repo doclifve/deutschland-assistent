@@ -12,6 +12,8 @@ services:
       DOCUMENT_TTL_SECONDS: ${DOCUMENT_TTL_SECONDS:-3600}
       MAX_STORED_DOCUMENTS: ${MAX_STORED_DOCUMENTS:-500}
       DOCLING_ARTIFACTS_PATH: ${DOCLING_ARTIFACTS_PATH:-/opt/docling-models}
+      WHATSAPP_PUBLIC_NUMBER: ${WHATSAPP_PUBLIC_NUMBER:-}
+      WHATSAPP_GREETING: ${WHATSAPP_GREETING:-Hallo}
     volumes:
       - docling_models:/opt/docling-models
     ports: ["8000:8000"]

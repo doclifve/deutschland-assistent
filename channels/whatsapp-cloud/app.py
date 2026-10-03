@@ -29,6 +29,25 @@ if not APP_SECRET:
     log.warning("WHATSAPP_APP_SECRET not set: webhook signatures are NOT verified (development only).")
 
 
+GREETINGS = {"hallo", "hi", "hey", "moin", "servus", "guten tag", "start", "hilfe", "help", "hello"}
+WELCOME = (
+    "Willkommen beim Deutschland Assistenten.\n\n"
+    "So geht's:\n"
+    "1. Brief oder Bescheid fotografieren oder als PDF schicken.\n"
+    "2. Gern eine Frage dazuschreiben, z. B. \"Bis wann muss ich antworten?\"\n"
+    "3. Sie bekommen Frist, nächste Schritte und amtliche Quellen zurück.\n\n"
+    "Sie können auch direkt fragen, z. B. \"Was bedeutet § 60 SGB I?\"\n\n"
+    "Ihre Dokumente werden nach spätestens einer Stunde gelöscht. "
+    "Informationshilfe, keine Rechtsberatung."
+)
+
+
+def is_greeting(text: str) -> bool:
+    """Short hello/help messages get the welcome text instead of a legal answer."""
+    normalized = " ".join(text.lower().strip(" !.?,:;").split())
+    return normalized in GREETINGS
+
+
 def signature_valid(body: bytes, header: str | None, secret: str = APP_SECRET) -> bool:
     if not secret:
         return True
@@ -152,6 +171,9 @@ async def process_message(message: dict) -> None:
         return
     try:
         text = message.get("text", {}).get("body")
+        if text and is_greeting(text):
+            await send(sender, WELCOME)
+            return
         if text:
             async with httpx.AsyncClient(timeout=40) as c:
                 r = await c.post(CORE + "/v1/ask", json={"message": text, "language": "de"})
