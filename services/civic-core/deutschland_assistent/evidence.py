@@ -47,16 +47,19 @@ class Services:
     def from_leika(self,leika_id:str)->EvidenceItem:
         return EvidenceItem(id=f"bundesportal:leika:{leika_id}",source_id=self.source_id,kind="official_service",authority="Bundesportal",title=f"Verwaltungsleistung (LeiKa {leika_id})",url=f"https://verwaltung.bund.de/leistungsverzeichnis/DE/leistung/{leika_id}",locator=f"LeiKa {leika_id}",snippet="Offizielle Leistungsseite im Bundesportal; regionale Angaben können abweichen.",score=.97,exact_match=True,metadata={"leika_id":leika_id})
     async def search(self,query:str,limit:int=5)->list[EvidenceItem]:
-        tokens={x for x in self._tokens(query) if len(x)>2};scored=[]
+        tokens={x for x in self._tokens(query) if len(x)>2 and x not in self.STOPWORDS};scored=[]
         for item in self.services:
-            hay=" ".join([str(item.get("title","")),str(item.get("summary",""))," ".join(item.get("keywords",[]))]).lower()
-            overlap=sum(1 for token in tokens if token in hay)
+            # Whole-word matching: substring matching let "ich" hit "möglich", "persönlich" etc.
+            hay=self._tokens(" ".join([str(item.get("title","")),str(item.get("summary",""))," ".join(item.get("keywords",[]))]))
+            keyword_hits=sum(1 for kw in item.get("keywords",[]) if (kt:=self._tokens(str(kw))) and kt<=tokens)
+            overlap=len(tokens&hay)+2*keyword_hits
             if overlap:scored.append((min(.95,.72+.06*overlap),item))
         scored.sort(key=lambda x:x[0],reverse=True);out=[]
         for score,item in scored[:limit]:
             url=str(item["url"]);stable=hashlib.sha1(url.encode()).hexdigest()[:12]
             out.append(EvidenceItem(id=f"service:{stable}",source_id=self.source_id,kind="official_service",authority=str(item.get("authority","Bundesportal / Bundesbehörde")),title=str(item["title"]),url=url,snippet=str(item.get("summary") or ""),score=score))
         return out
+    STOPWORDS=frozenset("ich wie was wer wo wann warum der die das den dem des ein eine einen einem einer und oder für mit bei auf von zum zur aus mein meine meinen mir mich kann muss soll ist bin sind habe hat wird werden nicht noch auch gibt gilt nach sgb bedeutet".split())
     @staticmethod
     def _tokens(text:str)->set[str]:
         return set("".join(ch.lower() if ch.isalnum() or ch in "äöüß" else " " for ch in text).split())

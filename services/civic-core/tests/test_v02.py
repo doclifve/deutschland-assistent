@@ -35,3 +35,10 @@ async def test_exact_law_ranks_first():
     bundle=await EvidenceEngine(EmptyNeuris(),GesetzeImInternet(),Services()).collect("§ 60 SGB I",refs,[],5)
     assert bundle.items[0].source_id=="gesetze-im-internet"
     assert bundle.items[0].exact_match is True
+
+@pytest.mark.asyncio
+async def test_benefit_catalog_ignores_filler_words():
+    # "ich" used to match "möglich"/"persönlich" as a substring and tie unrelated services.
+    hits=await Services().search("Wo beantrage ich Kindergeld?",5)
+    assert [h.title for h in hits]==["Kindergeld"]
+    assert await Services().search("Was bedeutet § 60 SGB I?",5)==[]
