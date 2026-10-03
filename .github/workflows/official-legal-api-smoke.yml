@@ -1,0 +1,54 @@
+name: Official legal API smoke test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check Rechtsinformationen des Bundes
+        shell: python
+        run: |
+          import json
+          import urllib.parse
+          import urllib.request
+
+          base = "https://testphase.rechtsinformationen.bund.de"
+          checks = [
+              ("/v1/legislation", {
+                  "searchTerm": "Gesetz",
+                  "size": 1,
+                  "pageIndex": 0,
+              }),
+              ("/v1/case-law", {
+                  "searchTerm": "Urteil",
+                  "size": 1,
+                  "pageIndex": 0,
+              }),
+          ]
+
+          for path, params in checks:
+              url = base + path + "?" + urllib.parse.urlencode(params)
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "Accept": "application/json",
+                      "User-Agent": "Deutschland-Assistent-source-smoke/1.0",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  if response.status != 200:
+                      raise SystemExit(f"{path}: HTTP {response.status}")
+                  payload = json.load(response)
+                  if not isinstance(payload, dict):
+                      raise SystemExit(f"{path}: unexpected JSON shape")
+                  if "member" not in payload and "hydra:member" not in payload:
+                      raise SystemExit(f"{path}: collection member field missing")
+                  print(f"{path}: OK")

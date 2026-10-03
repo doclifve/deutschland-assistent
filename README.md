@@ -21,7 +21,7 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 </p>
 </details>
 
-## Was v0.2.2 bereits kann
+## Was v0.2.4 bereits kann
 
 - PDFs, Textdateien sowie **Fotos und Scans** verarbeiten.
 - Text, Datumsangaben, Fristen und häufige Rechtsverweise erkennen.
@@ -31,12 +31,14 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - Relative Fristen wie „innerhalb eines Monats nach Bekanntgabe“ erkennen und konservativ ein mögliches Fristende schätzen. Geschätzte Fristen werden ausdrücklich als unsicher gekennzeichnet.
 - Hochgeladene Dokumente standardmäßig nur temporär im Speicher halten, mit Ablaufzeit, Größenbegrenzung und Lösch-Endpunkt.
 - Explizite Gesetzeszitate direkt mit **Gesetze im Internet** verknüpfen.
-- Bundesrecht und Rechtsprechung über die öffentliche **NeuRIS**-Schnittstelle durchsuchen; exakte Gesetzeszitate behalten einen direkten amtlichen Fallback.
+- Bundesrecht und Rechtsprechung über die offizielle **Rechtsinformationen-des-Bundes-API** durchsuchen; inklusive Datumsfiltern, Pagination, ELI/ECLI-Metadaten und Detailabruf einzelner Entscheidungen. Explizite Gesetzeszitate behalten einen direkten amtlichen Fallback.
 - Häufige Leistungen gegen ein nachvollziehbares Register offizieller Quellen abgleichen.
 - Strukturierte, gerankte Evidenz zu einer Antwort zurückgeben.
 - Fragen über eine einfache Weboberfläche stellen.
 - WhatsApp anbinden: Texte, Fotos und Dokumente können über die WhatsApp Cloud API in denselben Analyse-Workflow gelangen.
 - OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.\n- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als reine Erklärungsschicht hinter der Evidence Engine verwenden. Ohne Konfiguration bleibt der bisherige deterministische Modus aktiv.
+- OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
+- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als reine Erklärungsschicht hinter der Evidence Engine verwenden. Ohne Konfiguration bleibt der bisherige deterministische Modus aktiv.
 
 ## Was eine Dokumentantwort enthalten soll
 
@@ -202,6 +204,11 @@ Dokument hochladen:
 | PREFETCH_DOCLING_MODELS | 0 | Docling-Modelle beim Image-Build vorladen |
 | DOCUMENT_TTL_SECONDS | 3600 | Verweildauer eines Dokuments im Speicher |
 | MAX_STORED_DOCUMENTS | 500 | maximale Zahl gleichzeitig gespeicherter Dokumente |
+| NEURIS_BASE_URL | https://testphase.rechtsinformationen.bund.de | Basis der amtlichen Rechtsinformationen-API |
+| NEURIS_TIMEOUT_SECONDS | 8 | Timeout pro API-Aufruf |
+| NEURIS_CACHE_TTL_SECONDS | 900 | TTL des lokalen API-Caches |
+| NEURIS_MAX_RETRIES | 2 | Wiederholungen bei 429/5xx |
+| NEURIS_ENRICH_CASE_LAW | true | wichtige Rechtsprechungstreffer über den Detail-Endpunkt anreichern |
 | LLM_PROVIDER | disabled | disabled, germany_hosted, openai_compatible oder ollama |
 | LLM_BASE_URL | – | OpenAI-kompatibler /v1-Endpunkt |
 | LLM_MODEL | – | Modellname am Inferenz-Endpunkt |
@@ -213,6 +220,24 @@ Dokument hochladen:
 | WHATSAPP_GREETING | Hallo | vorausgefüllte Begrüßung im Chat |
 | WHATSAPP_APP_SECRET | – | Prüfung der Meta-Webhook-Signatur; in Produktion erforderlich |
 | MAX_WHATSAPP_MEDIA_BYTES | 15728640 | maximale WhatsApp-Mediendateigröße |
+
+## Rechtsinformationen des Bundes
+
+Die Evidence Engine nutzt die offizielle API der Rechtsinformationen des Bundes tiefer als nur für Suchtreffer:
+
+- `/v1/legislation` für aktuelle Bundesgesetzgebung
+- `/v1/case-law` für Rechtsprechung
+- `/v1/case-law/{documentNumber}` für vollständige Entscheidungsdaten
+- direkte HTML- und XML-Repräsentationen einzelner Entscheidungen
+- ELI/ECLI, Gericht, Entscheidungsdatum und Dokumentnummer als strukturierte Metadaten
+- Datumsfilter und Pagination
+- exakte Phrasensuche
+- TTL-Cache und Retry/Backoff bei temporären Fehlern
+- täglicher GitHub-Actions-Smoke-Test
+
+Die wichtigsten Rechtsprechungstreffer können über den amtlichen Detail-Endpunkt angereichert werden. Dabei werden zum Beispiel Leitsatz, Orientierungssatz, Tenor oder Entscheidungsgründe als Evidenz verwendet, sofern vorhanden.
+
+Die API befindet sich weiterhin in der Testphase. Deshalb bleibt **Gesetze im Internet** für explizite Normzitate ein unabhängiger amtlicher Fallback.
 
 ## Deutschland-gehostetes Sprachmodell
 
@@ -344,6 +369,9 @@ Neue Funktionen mit potenziell großen Folgen für Bürgerinnen und Bürger soll
 **v0.2.3 – frühe Alpha-Version.**
 
 Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen, die amtliche Evidence Engine sowie eine optionale evidenzbeschränkte LLM-Erklärungsschicht sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
+**v0.2.4 – frühe Alpha-Version.**
+
+Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen, die vertiefte amtliche Rechtsinformationen-Integration sowie eine optionale evidenzbeschränkte LLM-Erklärungsschicht sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
 
 ## Lizenz
 

@@ -38,6 +38,7 @@ from .schemas import (
 )
 
 VERSION = "0.2.3"
+VERSION = "0.2.4"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 MAX_DOCUMENT_PAGES = int(os.getenv("MAX_DOCUMENT_PAGES", "30"))
 DOCUMENT_ENGINE = os.getenv("DOCUMENT_ENGINE", "auto")
