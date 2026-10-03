@@ -55,6 +55,16 @@ body { width: 1920px; height: 1080px; overflow: hidden; position: relative; font
 .chat-foot div { flex: 1; height: 40px; border: 1px solid #D2D2D7; border-radius: 20px; background: #F5F5F7; color: #8E8E93; display: flex; align-items: center; padding: 0 16px; font-size: 16px; }
 .send { width: 40px; height: 40px; border-radius: 20px; background: #1D1D1F; }
 
+/* v0.3 agent cards inside the phone (same classes as the web app) */
+.agent-layer { background: #F5F5F7; padding: 64px 20px 0; box-sizing: border-box; }
+.agent-layer .section-eyebrow { margin: 0 0 6px; }
+.agent-title { margin: 0 0 18px; font-size: 34px; line-height: 1.06; font-weight: 700; letter-spacing: -0.03em; }
+.agent-layer .agent-card { margin-top: 0; }
+.agent-layer .chat-box { min-height: 0; }
+.agent-layer .agent-form .button { flex-shrink: 0; }
+.agent-layer textarea { font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+#ripple2 { width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; background: rgba(255,255,255,.5); border: 3px solid rgba(29,29,31,.28); }
+
 /* Finale */
 .word { font-size: 96px; font-weight: 700; letter-spacing: -0.04em; display: inline-flex; align-items: center; gap: 22px; margin: 0 26px; }
 .word i { width: 26px; height: 26px; border-radius: 50%; display: inline-block; }
@@ -107,10 +117,60 @@ body { width: 1920px; height: 1080px; overflow: hidden; position: relative; font
         <div class="chat-foot"><div>Nachricht oder Foto</div><span class="send"></span></div>
       </div>
     </div>
+    <div id="sAgentChat" class="layer agent-layer">
+      <p class="section-eyebrow">Der Assistent</p>
+      <h2 class="agent-title">Schreiben. Fragen. Erledigen.</h2>
+      <div class="agent-card">
+        <h3>Mit dem Assistenten schreiben</h3>
+        <div class="chat-box">
+          <div class="chat-message chat-user" id="aU">Welche Unterlagen brauche ich für einen neuen Personalausweis?</div>
+          <div class="chat-message chat-assistant" id="aA">Sie brauchen Ihren bisherigen Ausweis oder Reisepass und ein digitales biometrisches Lichtbild. Ausgedruckte Fotos werden seit 1. Mai 2025 nicht mehr angenommen.<br><br>Quelle: Bundesportal – Personalausweis beantragen</div>
+        </div>
+        <div class="agent-form"><input id="aIn" placeholder="Nachricht schreiben …"><span class="button" id="aSend">Senden</span></div>
+      </div>
+    </div>
+    <div id="sAgentAppt" class="layer agent-layer">
+      <p class="section-eyebrow">Der Assistent</p>
+      <div class="agent-card">
+        <h3>Termin vorbereiten</h3>
+        <p class="agent-muted">Der Assistent bereitet die Aktion vor. Gebucht wird erst nach Ihrer Bestätigung und nur über einen freigegebenen Connector.</p>
+        <div class="agent-form agent-form-stack">
+          <input id="apS" placeholder="z. B. Personalausweis beantragen">
+          <input id="apL" placeholder="Ort / Behörde (optional)">
+          <input placeholder="Offizielle Buchungs-URL (optional)">
+          <span class="button" id="apBtn">Vorschau erstellen</span>
+        </div>
+        <div class="action-preview" id="apPrev">
+          <strong>Termin vorbereiten: Personalausweis beantragen</strong>
+          <p id="apStatus">Status: prepared</p>
+          <div class="action-buttons" id="apBtns"><span class="button" id="apOk">Bestätigen</span><span class="link-button">Abbrechen</span></div>
+          <p id="apDone">Freigegeben. Ein verbundener Browser-/Behörden-Connector darf den Termin jetzt ausführen.</p>
+        </div>
+      </div>
+    </div>
+    <div id="sAgentForm" class="layer agent-layer">
+      <p class="section-eyebrow">Der Assistent</p>
+      <div class="agent-card">
+        <h3>PDF-Formular ausfüllen</h3>
+        <p class="agent-muted">Ausfüllbares PDF hochladen. Der Formular-Agent ordnet Ihre Angaben den vorhandenen Feldern zu. Das PDF wird erst nach Bestätigung erzeugt.</p>
+        <div class="form-agent" id="fAgent">
+          <p style="margin: 0;">12 ausfüllbare Felder erkannt.</p>
+          <textarea id="fTa" rows="6"></textarea>
+          <span class="button" id="fBtn">Agent Vorschau erstellen</span>
+        </div>
+        <div class="action-preview" id="fPrev">
+          <strong>Formular-Agent: antrag.pdf</strong>
+          <p>9 Felder werden ausgefüllt.</p>
+          <div class="action-buttons"><span class="button" id="fOk">Ausfüllen bestätigen</span></div>
+          <div class="action-buttons" id="fDl"><span class="button">Ausgefülltes PDF herunterladen</span></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <div id="ripple" class="abs"></div>
+<div id="ripple2" class="abs"></div>
 
 <div id="letter" class="abs">
   <div style="font-weight: 700; font-size: 15px;">Jobcenter Hamburg</div>
@@ -127,6 +187,9 @@ body { width: 1920px; height: 1080px; overflow: hidden; position: relative; font
 <div id="cap2" class="abs caption"><h2>Verstehen.</h2><p>Gelesen und mit amtlichen Quellen abgeglichen.</p></div>
 <div id="cap3" class="abs caption"><h2>Frist erkannt.</h2><p>Nachvollziehbar berechnet. Mit Link zum Gesetz.</p></div>
 <div id="cap4" class="abs caption"><h2>Auch per WhatsApp.</h2><p>Foto in den Chat schicken. Die Antwort kommt zurück.</p></div>
+<div id="cap5" class="abs caption"><h2>Einfach schreiben.</h2><p>Fragen im Gespräch. Behörden- und Rechtsfragen mit amtlicher Quelle.</p></div>
+<div id="cap6" class="abs caption"><h2>Termin vorbereiten.</h2><p>Der Assistent bereitet vor. Gebucht wird erst nach Ihrer Bestätigung.</p></div>
+<div id="cap7" class="abs caption"><h2>Formulare ausfüllen.</h2><p>Der Agent ordnet Ihre Angaben den Feldern zu. Das PDF entsteht erst nach Bestätigung.</p></div>
 
 <!-- Finale -->
 <div id="words" class="abs center-x" style="top: 480px;">
@@ -166,7 +229,7 @@ function poseLogos(t, speed = 1) {
   });
 }
 
-const DURATION = 27;
+const DURATION = 42;
 const W = 1920;
 
 function render(t) {
@@ -189,7 +252,7 @@ function render(t) {
 
   // Phone in (6.6–7.4), out (21.0–21.8)
   const phoneIn = p(t, 6.6, 7.5);
-  const phoneOut = p(t, 21.0, 21.8, easeInOut);
+  const phoneOut = p(t, 36.0, 36.8, easeInOut);
   set($("phone"), Math.min(phoneIn, 1 - phoneOut), 0, (1 - phoneIn) * 220 + phoneOut * 120);
 
   // Screens inside the phone
@@ -199,7 +262,7 @@ function render(t) {
   const resIn = p(t, 10.7, 11.4);
   const resOut = p(t, 15.6, 16.0);
   set($("sResult"), Math.min(resIn, 1 - resOut), 0, (1 - resIn) * 844);
-  set($("sChat"), p(t, 15.7, 16.1));
+  set($("sChat"), Math.min(p(t, 15.7, 16.1), 1 - p(t, 20.75, 21.0)));
 
   // Tap on the button (7.8–8.3)
   const press = win(t, 7.8, 8.4, 0.15);
@@ -236,18 +299,82 @@ function render(t) {
   cap("cap2", 9.0, 10.9);
   cap("cap3", 10.9, 15.7);
   cap("cap4", 15.7, 21.2);
+  cap("cap5", 21.2, 25.7);
+  cap("cap6", 25.7, 30.7);
+  cap("cap7", 30.7, 36.2);
+
+  // v0.3 agent scenes
+  agentScenes(t);
 
   // Finale: three words, then logo + title
-  const wordsOut = 1 - p(t, 24.2, 24.8, easeInOut);
+  const wordsOut = 1 - p(t, 39.2, 39.8, easeInOut);
   ["w1", "w2", "w3"].forEach((id, i) => {
-    const a = 22.0 + i * 0.55;
+    const a = 37.0 + i * 0.55;
     set($(id), p(t, a, a + 0.5) * wordsOut, 0, (1 - p(t, a, a + 0.5)) * 40);
   });
-  const outro = p(t, 24.6, 25.4);
+  const outro = p(t, 39.6, 40.4);
   set($("outroLogo"), outro, (W - 288) / 2, 330 + (1 - outro) * 30);
   set($("outroTitle"), outro, 0, (1 - outro) * 30);
-  set($("outroSub"), p(t, 25.0, 25.8), 0, (1 - p(t, 25.0, 25.8)) * 20);
+  set($("outroSub"), p(t, 40.0, 40.8), 0, (1 - p(t, 40.0, 40.8)) * 20);
 }
+function typeInto(el, text, a, b, t) {
+  el.value = text.slice(0, Math.round(text.length * clamp((t - a) / (b - a))));
+}
+
+// A tap: the element dips slightly and a ripple appears on it.
+function tap(el, t0, t) {
+  const press = win(t, t0, t0 + 0.35, 0.12);
+  el.style.transform = `scale(${1 - 0.05 * press})`;
+  if (t >= t0 && t <= t0 + 0.6) {
+    const r = el.getBoundingClientRect();
+    const k = p(t, t0, t0 + 0.6);
+    set($("ripple2"), 1 - k, r.left + r.width / 2, r.top + r.height / 2, 0.3 + 0.8 * k);
+    return true;
+  }
+  return false;
+}
+
+function agentScenes(t) {
+  // Scene: chat (21.0–25.6)
+  set($("sAgentChat"), Math.min(p(t, 21.0, 21.4), 1 - p(t, 25.3, 25.55)));
+  typeInto($("aIn"), "Welche Unterlagen brauche ich für einen neuen Personalausweis?", 21.6, 22.6, t);
+  if (t > 22.95) $("aIn").value = "";
+  const sentU = p(t, 22.95, 23.3);
+  set($("aU"), sentU, 0, (1 - sentU) * 16);
+  $("aSend").textContent = t > 22.95 && t < 24.0 ? "Denkt …" : "Senden";
+  const ans = p(t, 24.0, 24.5);
+  set($("aA"), ans, 0, (1 - ans) * 16);
+
+  // Scene: appointment (25.6–30.6)
+  set($("sAgentAppt"), Math.min(p(t, 25.6, 25.9), 1 - p(t, 30.3, 30.55)));
+  typeInto($("apS"), "Personalausweis beantragen", 26.1, 27.1, t);
+  typeInto($("apL"), "Hamburg", 27.2, 27.6, t);
+  const prev = p(t, 28.15, 28.55);
+  set($("apPrev"), prev, 0, (1 - prev) * 14);
+  const ok = t > 29.55;
+  $("apStatus").textContent = ok ? "Status: approved" : "Status: prepared";
+  $("apBtns").style.display = ok ? "none" : "flex";
+  $("apDone").style.display = ok ? "block" : "none";
+
+  // Scene: form agent (30.6–36.0)
+  set($("sAgentForm"), p(t, 30.6, 30.9)); // stays until the phone leaves
+  typeInto($("fTa"), "Vorname: Erika\nNachname: Mustermann\nGeburtsdatum: 12.08.1964\nStraße: Musterweg 3\nPLZ: 20095\nOrt: Hamburg", 31.3, 32.9, t);
+  const fprev = p(t, 33.45, 33.85);
+  set($("fPrev"), fprev, 0, (1 - fprev) * 14);
+  const done = t > 34.85;
+  $("fOk").parentElement.style.display = done ? "none" : "flex";
+  $("fDl").style.display = done ? "flex" : "none";
+
+  // Taps (one ripple element, never overlapping)
+  let rippling = false;
+  rippling = tap($("aSend"), 22.7, t) || rippling;
+  rippling = tap($("apBtn"), 27.8, t) || rippling;
+  rippling = tap($("apOk"), 29.2, t) || rippling;
+  rippling = tap($("fBtn"), 33.1, t) || rippling;
+  rippling = tap($("fOk"), 34.5, t) || rippling;
+  if (!rippling) set($("ripple2"), 0);
+}
+
 window.render = render;
 window.DURATION = DURATION;
 render(0);

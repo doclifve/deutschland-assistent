@@ -11,9 +11,9 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 > **Grundprinzip:** Das Modell ist nicht die Quelle der Wahrheit. Maßgeblich sind das Originaldokument und amtliche Quellen.
 
 <p align="center">
-  <img src="docs/media/rundgang.gif" alt="Rundgang: Das Logo atmet, „Behördenpost. Endlich verständlich.“, ein Bescheid wird fotografiert, die Widerspruchsfrist erscheint mit amtlicher Quelle, dieselbe Antwort kommt per WhatsApp, zum Schluss „Fotografieren. Verstehen. Handeln.“" width="860" />
+  <img src="docs/media/rundgang.gif" alt="Rundgang: Das Logo atmet, „Behördenpost. Endlich verständlich.“, ein Bescheid wird fotografiert, die Widerspruchsfrist erscheint mit amtlicher Quelle, dieselbe Antwort kommt per WhatsApp; danach beantwortet der Assistent eine Frage im Chat, bereitet einen Termin vor, der nach Bestätigung freigegeben wird, und füllt ein PDF-Formular nach Bestätigung aus; zum Schluss „Fotografieren. Verstehen. Handeln.“" width="860" />
   <br />
-  <sub>Rundgang in 27 Sekunden · <a href="docs/media/rundgang.mp4">als MP4 in voller Auflösung</a></sub>
+  <sub>Rundgang in 42 Sekunden · <a href="docs/media/rundgang.mp4">als MP4 in voller Auflösung</a></sub>
 </p>
 
 <p align="center">
