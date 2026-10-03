@@ -42,9 +42,20 @@
 
 ## v0.2.4 – Evidence Engine 2.0
 
+- [x] vertiefter Connector für die Rechtsinformationen des Bundes
+- [x] Volltext- und exakte Phrasensuche
+- [x] Datumsfilter für Rechtsprechung
+- [x] Gültigkeitsfilter für Gesetzgebung
+- [x] Pagination
+- [x] ELI-/ECLI-Metadaten
+- [x] vollständiger JSON-Abruf einzelner Entscheidungen
+- [x] direkte JSON-/HTML-/XML-Links für Rechtsprechung
+- [x] Detail-Enrichment der wichtigsten Rechtsprechungstreffer
+- [x] TTL-Cache
+- [x] Retry/Backoff bei 429 und 5xx
+- [x] täglicher API-Smoke-Test
 - [ ] einheitliches Source-Registry-Schema
-- [ ] Source-Freshness-Monitoring
-- [ ] robustere NeuRIS-Relevanzbewertung
+- [ ] robustere Relevanzbewertung
 - [ ] breitere Bundesportal-/LeiKa-Abdeckung
 - [ ] weitere amtliche Leistungsquellen
 - [ ] erste Civic-Knowledge-Graph-Strukturen

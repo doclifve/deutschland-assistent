@@ -1,4 +1,4 @@
-# Architektur — v0.2.3
+# Architektur — v0.2.4
 
 Deutschland Assistent trennt Dokumentverständnis, amtliche Recherche und sprachliche Erklärung strikt voneinander.
 
@@ -16,7 +16,7 @@ deterministische Extraktion
           ↓
 Evidence Engine
           ↓
-Gesetze im Internet · NeuRIS Gesetzgebung · NeuRIS Rechtsprechung · amtliche Leistungen
+Gesetze im Internet · Rechtsinformationen des Bundes · amtliche Leistungen
           ↓
 Deduplizierung + Evidence Ranking
           ↓
@@ -94,12 +94,20 @@ Dokumenttext und Quellen-Snippets werden als Daten behandelt, niemals als Instru
 
 1. Exakte Gesetzeszitate werden deterministisch über Gesetze im Internet aufgelöst.
 2. Exakte LeiKa-IDs werden zu direkten Bundesportal-Links.
-3. NeuRIS wird nach aktuellem Bundesrecht durchsucht.
+3. Die Rechtsinformationen des Bundes werden nach aktuell geltender Bundesgesetzgebung durchsucht.
 4. Bei juristischen Fragen/Rechtsbehelfen wird Rechtsprechung separat gesucht und als solche markiert.
-5. Kuratierte amtliche Leistungsquellen werden transparent durchsucht.
-6. Evidenz wird dedupliziert und gerankt; exakte amtliche Treffer stehen vorn.
+5. Für die wichtigsten Rechtsprechungstreffer kann der vollständige amtliche Detail-Endpunkt geladen werden.
+6. ELI, ECLI, Dokumentnummer, Gericht und Entscheidungsdatum werden als strukturierte Metadaten weitergegeben.
+7. Kuratierte amtliche Leistungsquellen werden transparent durchsucht.
+8. Evidenz wird dedupliziert und gerankt; exakte amtliche Treffer stehen vorn.
 
-NeuRIS ist ein offizieller Testdienst mit unvollständigem Datenbestand und bleibt deshalb bei expliziten Normzitaten nicht der einzige Fallback.
+Die Rechtsinformationen des Bundes befinden sich in der Testphase und bleiben deshalb bei expliziten Normzitaten nicht der einzige Fallback.
+
+## Schutz der amtlichen Schnittstelle
+
+Der Connector verwendet einen kurzen TTL-Cache und wiederholt nur temporär fehlgeschlagene Aufrufe (HTTP 429 bzw. 5xx) mit Backoff. Dadurch werden unnötige Wiederholungsanfragen vermieden.
+
+Ein täglicher GitHub-Actions-Smoke-Test prüft die Collection-Endpunkte für Gesetzgebung und Rechtsprechung. Ein Schema- oder Verfügbarkeitsproblem wird damit unabhängig vom Nutzerverkehr sichtbar.
 
 ## Datenschutzgrenze
 
