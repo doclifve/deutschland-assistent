@@ -36,7 +36,7 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - Strukturierte, gerankte Evidenz zu einer Antwort zurückgeben.
 - Fragen über eine einfache Weboberfläche stellen.
 - WhatsApp anbinden: Texte, Fotos und Dokumente können über die WhatsApp Cloud API in denselben Analyse-Workflow gelangen.
-- OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
+- OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.\n- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als reine Erklärungsschicht hinter der Evidence Engine verwenden. Ohne Konfiguration bleibt der bisherige deterministische Modus aktiv.
 
 ## Was eine Dokumentantwort enthalten soll
 
@@ -96,8 +96,15 @@ Alles, was diesen Ablauf zuverlässiger, verständlicher oder sicherer macht, ha
                        Evidence Engine
                               │
                               ▼
-                    strukturierte Antwort
+               strukturierter Evidence Context
                               │
+                    ┌─────────┴─────────┐
+                    │                   │
+                    ▼                   ▼
+           deterministischer      optionales LLM
+               Fallback          in Deutschland
+                    │                   │
+                    └─────────┬─────────┘
                               ▼
                       verständliche Ausgabe
 
@@ -109,6 +116,7 @@ Alles, was diesen Ablauf zuverlässiger, verständlicher oder sicherer macht, ha
 - **Kein Modell-Lock-in.** Der deterministische Kern funktioniert ohne LLM; Modelle können hinter einer Provider-Schnittstelle ergänzt werden.
 - **Minimale Datenhaltung.** Persönliche Dokumente sollen standardmäßig nur so lange gespeichert werden, wie es für die Verarbeitung nötig ist.
 - **Unsicherheit bleibt sichtbar.** Eine geschätzte Frist oder ein semantischer Suchtreffer darf nicht wie eine amtlich feststehende Tatsache aussehen.
+- **Das LLM formuliert, die Evidenz begrenzt.** Das Modell erhält strukturierte Fakten und amtliche Evidenzbausteine statt standardmäßig den vollständigen Brief. Aussagen ohne bekannte Evidence-ID werden verworfen; neue Datums- oder Paragraphenangaben müssen in der referenzierten Evidenz vorkommen.
 
 ## Projektplan
 
@@ -194,10 +202,35 @@ Dokument hochladen:
 | PREFETCH_DOCLING_MODELS | 0 | Docling-Modelle beim Image-Build vorladen |
 | DOCUMENT_TTL_SECONDS | 3600 | Verweildauer eines Dokuments im Speicher |
 | MAX_STORED_DOCUMENTS | 500 | maximale Zahl gleichzeitig gespeicherter Dokumente |
+| LLM_PROVIDER | disabled | disabled, germany_hosted, openai_compatible oder ollama |
+| LLM_BASE_URL | – | OpenAI-kompatibler /v1-Endpunkt |
+| LLM_MODEL | – | Modellname am Inferenz-Endpunkt |
+| LLM_API_KEY | – | optionaler API-Schlüssel; nie committen |
+| LLM_REGION | DE | bei germany_hosted zwingend DE |
+| LLM_TIMEOUT_SECONDS | 60 | Timeout der Erklärungsschicht |
+| LLM_MAX_TOKENS | 900 | maximale Antwortlänge der Erklärungsschicht |
 | WHATSAPP_PUBLIC_NUMBER | – | öffentliche WhatsApp-Nummer im E.164-Format |
 | WHATSAPP_GREETING | Hallo | vorausgefüllte Begrüßung im Chat |
 | WHATSAPP_APP_SECRET | – | Prüfung der Meta-Webhook-Signatur; in Produktion erforderlich |
 | MAX_WHATSAPP_MEDIA_BYTES | 15728640 | maximale WhatsApp-Mediendateigröße |
+
+## Deutschland-gehostetes Sprachmodell
+
+Die Erklärungsschicht ist optional. Standardmäßig läuft der Civic Core weiterhin ohne LLM:
+
+    LLM_PROVIDER=disabled
+
+Für einen OpenAI-kompatiblen Inferenz-Endpunkt, dessen Betrieb und Datenverarbeitung vertraglich und technisch in Deutschland abgesichert sind:
+
+    LLM_PROVIDER=germany_hosted
+    LLM_BASE_URL=https://<ihr-endpunkt>/v1
+    LLM_MODEL=<modellname>
+    LLM_API_KEY=<secret>
+    LLM_REGION=DE
+
+Der Core sendet an diese Schicht standardmäßig **nicht den vollständigen Originalbrief**, sondern strukturierte, bereits extrahierte Fakten sowie amtliche Evidenzbausteine. Das Modell muss JSON mit Evidence-IDs zurückgeben. Unbekannte Evidence-IDs sowie neue, nicht belegte Datums- oder Paragraphenangaben werden verworfen.
+
+Wichtig: Die Einstellung `LLM_REGION=DE` ist nur eine technische Konfigurationssperre und **kein Nachweis für Datenresidenz**. Betreiber müssen Hosting-Standort, Auftragsverarbeitung, Unterauftragsverarbeiter, Logging, Retention und Trainingsnutzung unabhängig prüfen.
 
 ## WhatsApp
 
@@ -308,9 +341,9 @@ Neue Funktionen mit potenziell großen Folgen für Bürgerinnen und Bürger soll
 
 ## Status
 
-**v0.2.2 – frühe Alpha-Version.**
+**v0.2.3 – frühe Alpha-Version.**
 
-Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen sowie die amtliche Evidence Engine sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
+Die OCR-Dokumentverarbeitung, strukturierte Extraktion von Anforderungen und Rechtsbehelfen, die amtliche Evidence Engine sowie eine optionale evidenzbeschränkte LLM-Erklärungsschicht sind implementiert. Schnittstellen und Datenmodelle können sich noch ändern.
 
 ## Lizenz
 
