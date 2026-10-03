@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" width="480" height="480" role="img" aria-labelledby="title desc">
+<title id="title">Deutschland Assistent</title>
+<desc id="desc">Drei Kreise in Schwarz, Rot und Gold, die zeitversetzt auseinander und wieder zusammen atmen, während sich der ganze Cluster langsam dreht.</desc>
+<style>
+@keyframes dc-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes dc-top{0%,100%{transform:translate(0,0)}50%{transform:translate(0,-26px)}}
+@keyframes dc-left{0%,100%{transform:translate(0,0)}50%{transform:translate(-22px,14px)}}
+@keyframes dc-right{0%,100%{transform:translate(0,0)}50%{transform:translate(22px,14px)}}
+.dc-cluster{transform-box:view-box;transform-origin:240px 263px;animation:dc-spin 12s linear infinite}
+.dc-c{animation-duration:3s;animation-timing-function:ease-in-out;animation-iteration-count:infinite}
+.dc-top{animation-name:dc-top}
+.dc-left{animation-name:dc-left;animation-delay:.3s}
+.dc-right{animation-name:dc-right;animation-delay:.6s}
+@media (prefers-reduced-motion: reduce){.dc-cluster,.dc-c{animation:none}}
+</style>
+<rect width="480" height="480" fill="#FFFFFF"/>
+<g class="dc-cluster">
+  <g class="dc-c dc-top"><circle cx="240" cy="180" r="90" fill="#000000"/></g>
+  <g class="dc-c dc-left"><circle cx="170" cy="300" r="90" fill="#DD0000" opacity="0.88"/></g>
+  <g class="dc-c dc-right"><circle cx="310" cy="300" r="90" fill="#FFCC00" opacity="0.88"/></g>
+</g>
+</svg>

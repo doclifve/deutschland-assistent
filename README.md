@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Deutschland Assistent Logo" width="220" />
+  <img src="assets/logo-animated.svg" alt="Deutschland Assistent Logo: drei Kreise in Schwarz, Rot und Gold, die atmen und sich langsam drehen" width="220" />
 </p>
 
 # Deutschland Assistent 🇩🇪
@@ -205,4 +205,6 @@ Apache-2.0 for original project code unless a file says otherwise. External comp
 
 ## Logo motion
 
-The web app logo is intentionally alive: the three black, red and gold circles breathe apart and back together with a slight phase shift while the whole cluster rotates slowly. Their multiply-blended intersections continuously create changing color mixtures. Motion is disabled automatically when the operating system requests reduced motion.
+The logo is intentionally alive: the three black, red and gold circles breathe apart and back together with a slight phase shift (3 s cycle, 0.3 s offset) while the whole cluster rotates slowly (12 s). Red and gold are slightly translucent, so their overlaps change color as the circles move. Motion is disabled automatically when the operating system requests reduced motion.
+
+The README uses `assets/logo-animated.svg`, a self-contained animated SVG (CSS only, no scripts), so it also animates on GitHub. `assets/logo.svg` remains the static version for places that cannot show animation.
