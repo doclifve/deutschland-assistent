@@ -10,6 +10,17 @@ Deutschland Assistent is an open-source, evidence-first civic assistant. It is d
 
 > **Core principle:** The model is not the source of truth. Official sources and the user's document are.
 
+<p align="center">
+  <img src="docs/screenshots/iphone.png" alt="Deutschland Assistent auf dem iPhone: Startseite mit animiertem Logo, „So einfach.“ in drei Schritten und Ergebnis mit geschätzter Widerspruchsfrist und amtlichen Quellen" width="860" />
+</p>
+
+<details>
+<summary>iPad</summary>
+<p align="center">
+  <img src="docs/screenshots/ipad.png" alt="Deutschland Assistent auf dem iPad: Startseite mit animiertem Logo und der Überschrift „Behördenpost. Endlich verständlich.“" width="760" />
+</p>
+</details>
+
 ## What v0.2.2 can do
 
 - Upload PDFs, text files **and photos/scans**.
@@ -105,15 +116,31 @@ Then open:
 - API docs: http://localhost:8000/docs
 - Health: http://localhost:8000/health
 
-### Option B — backend only
+### Option B — without Docker
+
+Requires Python 3.11+ (on macOS: `python3.12`, not `python`) and Node.js 20+.
+
+Backend, in one terminal:
 
 ```bash
 cd services/civic-core
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-uvicorn deutschland_assistent.main:app --reload --port 8000
+python -m uvicorn deutschland_assistent.main:app --reload --port 8000
 ```
+
+`python -m uvicorn` makes sure the server runs from the virtual environment, even if an older global `uvicorn` is installed.
+
+Web interface, in a second terminal:
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Then open http://localhost:3000 (API docs: http://localhost:8000/docs).
 
 For Docling/OCR support:
 
