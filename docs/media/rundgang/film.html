@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Deutschland Assistent – Rundgang</title>
+<link rel="stylesheet" href="../../../apps/web/app/styles.css">
+<style>
+html, body { margin: 0; background: #FFFFFF; }
+body { width: 1920px; height: 1080px; overflow: hidden; position: relative; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif; color: #1D1D1F; }
+.logo-cluster, .logo-c { animation: none !important; }
+.abs { position: absolute; }
+.center-x { left: 0; right: 0; text-align: center; }
+
+/* Phone */
+#phone { left: 420px; top: 106px; width: 414px; height: 868px; border-radius: 66px; background: #1D1D1F; box-shadow: 0 40px 80px rgba(0,0,0,.18); }
+#screen { position: absolute; left: 12px; top: 12px; width: 390px; height: 844px; border-radius: 54px; overflow: hidden; background: #FFFFFF; }
+.layer { position: absolute; inset: 0; }
+#screen .screen { min-height: 844px; height: 844px; }
+#screen .result { min-height: 844px; height: 844px; overflow: hidden; padding-top: 52px; }
+
+/* The film viewport is 1920 px wide, so pin the phone screens to their phone styles. */
+#screen .screen { padding: 64px 28px 40px; }
+#screen .wordmark { font-size: 15px; }
+#screen .hero .logo { --s: 0.725; margin-top: 64px; }
+#screen .hero-title { font-size: 40px; line-height: 1.08; letter-spacing: -0.025em; white-space: normal; }
+#screen .hero-sub { margin-top: 18px; font-size: 19px; line-height: 1.42; }
+#screen .hero-actions { flex-direction: column; gap: 18px; }
+#screen .button-wide { width: 100%; padding: 0 32px; font-size: 17px; }
+#screen .hero-actions .link-button { font-size: 17px; min-height: 44px; }
+#screen .result-head h1 { font-size: 32px; }
+
+/* Captions */
+.caption { left: 1000px; width: 820px; top: 400px; }
+.caption h2 { margin: 0; font-size: 76px; line-height: 1.04; font-weight: 700; letter-spacing: -0.035em; }
+.caption p { margin: 22px 0 0; font-size: 32px; line-height: 1.35; color: #636366; letter-spacing: -0.01em; }
+
+/* Letter */
+#letter { left: 0; top: 0; width: 320px; height: 430px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 30px 70px rgba(0,0,0,.20); padding: 30px 28px; box-sizing: border-box; font-size: 13px; line-height: 1.5; color: #1D1D1F; }
+#letter .ln { height: 8px; border-radius: 4px; background: #E5E5EA; margin-top: 10px; }
+
+#ripple { width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; background: rgba(255,255,255,.55); border: 3px solid rgba(29,29,31,.25); }
+
+/* Chat */
+.chat { position: absolute; inset: 0; display: flex; flex-direction: column; background: #F5F5F7; }
+.chat-head { display: flex; align-items: center; gap: 12px; padding: 56px 16px 12px; background: #FFFFFF; border-bottom: 1px solid #E5E5EA; }
+.mini { position: relative; width: 36px; height: 34px; }
+.mini span { position: absolute; width: 20px; height: 20px; border-radius: 50%; }
+.chat-body { flex: 1; position: relative; padding: 18px 14px; font-size: 15px; line-height: 1.45; }
+.me { position: absolute; right: 14px; max-width: 78%; background: #1D1D1F; color: #FFFFFF; border-radius: 20px 20px 6px 20px; padding: 10px 14px; transform-origin: right bottom; }
+.bot { position: absolute; left: 14px; max-width: 86%; background: #FFFFFF; border-radius: 20px 20px 20px 6px; padding: 12px 16px; transform-origin: left top; }
+.att { display: flex; gap: 10px; align-items: center; background: #3A3A3C; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.typing { position: absolute; left: 14px; background: #FFFFFF; border-radius: 20px; padding: 14px 18px; display: flex; gap: 6px; }
+.typing i { width: 9px; height: 9px; border-radius: 50%; background: #8E8E93; display: block; }
+.chat-foot { display: flex; gap: 10px; padding: 10px 14px 34px; background: #FFFFFF; border-top: 1px solid #E5E5EA; }
+.chat-foot div { flex: 1; height: 40px; border: 1px solid #D2D2D7; border-radius: 20px; background: #F5F5F7; color: #8E8E93; display: flex; align-items: center; padding: 0 16px; font-size: 16px; }
+.send { width: 40px; height: 40px; border-radius: 20px; background: #1D1D1F; }
+
+/* Finale */
+.word { font-size: 96px; font-weight: 700; letter-spacing: -0.04em; display: inline-flex; align-items: center; gap: 22px; margin: 0 26px; }
+.word i { width: 26px; height: 26px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body>
+
+<!-- Scene 1/2: logo and headline -->
+<div id="introLogo" class="abs" style="left: 0; top: 0;">
+  <div class="logo" style="--s: 1.25"><div class="logo-scale"><div class="logo-cluster"><span class="logo-c logo-top"></span><span class="logo-c logo-left"></span><span class="logo-c logo-right"></span></div></div></div>
+</div>
+<div id="introWord" class="abs center-x" style="top: 760px; font-size: 40px; font-weight: 600; letter-spacing: -0.02em;">Deutschland Assistent</div>
+<div id="h1" class="abs center-x" style="top: 560px; font-size: 128px; font-weight: 700; letter-spacing: -0.045em; line-height: 1;">Behördenpost.</div>
+<div id="h2" class="abs center-x" style="top: 700px; font-size: 128px; font-weight: 700; letter-spacing: -0.045em; line-height: 1;">Endlich verständlich.</div>
+
+<!-- Phone -->
+<div id="phone" class="abs">
+  <div id="screen">
+    <div id="sHero" class="layer">
+      <section class="screen hero">
+        <div class="wordmark">Deutschland Assistent</div>
+        <div class="logo"><div class="logo-scale"><div class="logo-cluster"><span class="logo-c logo-top"></span><span class="logo-c logo-left"></span><span class="logo-c logo-right"></span></div></div></div>
+        <h1 class="hero-title">Behördenpost. <br>Endlich verständlich.</h1>
+        <p class="hero-sub">Brief fotografieren. Verstehen, was drinsteht. Wissen, was zu tun ist.</p>
+        <div class="hero-spacer"></div>
+        <div class="hero-actions"><span id="cta" class="button button-wide">Brief fotografieren</span><span class="link-button" style="display:flex;align-items:center">So funktioniert’s ›</span></div>
+      </section>
+    </div>
+    <div id="sLoad" class="layer" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; background: #FFFFFF;">
+      <div class="logo"><div class="logo-scale"><div class="logo-cluster"><span class="logo-c logo-top"></span><span class="logo-c logo-left"></span><span class="logo-c logo-right"></span></div></div></div>
+      <p style="margin: 0; font-size: 19px; color: #636366;">Wird gelesen …</p>
+    </div>
+    <div id="sResult" class="layer">
+      <main class="result"><div class="result-inner">
+        <div class="result-bar"><span class="link-button" style="display:flex;align-items:center">‹ Start</span><span class="link-button" style="display:flex;align-items:center">Anderer Brief</span></div>
+        <header class="result-head"><div class="result-sub">Jobcenter · Brief vom 13. Sept. 2026</div><h1>Bescheid</h1></header>
+        <section class="card" id="rDeadline"><div class="card-row"><div class="card-label">Widerspruch möglich bis</div><span class="pill pill-estimate" id="rPill">Geschätzt</span></div><div class="deadline-date" id="rDate">Mo., 19. Okt.</div><div class="card-note">Berechnet ab Briefdatum. Maßgeblich ist, wann der Brief tatsächlich ankam.</div></section>
+        <section class="card" id="rSteps"><h2>Was ist zu tun?</h2><ol class="steps"><li><span class="step-num">1</span><span>Prüfen Sie die erkannte Frist im Originaldokument.</span></li><li><span class="step-num">2</span><span>Stellen Sie die verlangten Unterlagen zusammen.</span></li></ol></section>
+        <section class="card card-list" id="rSources"><span class="source"><span><span class="source-title">§ 84 SGG</span><span class="source-meta">Bundesministerium der Justiz</span></span><span class="chevron">›</span></span><span class="source"><span><span class="source-title">§ 37 SGB X</span><span class="source-meta">Bundesministerium der Justiz</span></span><span class="chevron">›</span></span></section>
+      </div></main>
+    </div>
+    <div id="sChat" class="layer">
+      <div class="chat">
+        <div class="chat-head"><span style="font-size: 26px; color: #0066CC; width: 20px;">‹</span><div class="mini"><span style="left: 8px; top: 0; background: #000;"></span><span style="left: 0; top: 13px; background: #DD0000; opacity: .88;"></span><span style="left: 16px; top: 13px; background: #FFCC00; opacity: .88;"></span></div><div style="flex: 1;"><div style="font-size: 17px; font-weight: 600;">Deutschland Assistent</div><div style="font-size: 13px; color: #636366;">in WhatsApp</div></div></div>
+        <div class="chat-body">
+          <div class="me" id="cMe" style="top: 18px;"><div class="att"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7"><path d="M6 3h9l3 3v15H6z"/><path d="M9 11h6M9 15h6"/></svg><div><div style="font-weight: 600;">Bescheid.jpg</div><div style="font-size: 12px; color: #C7C7CC;">Foto</div></div></div>Bis wann muss ich antworten?</div>
+          <div class="typing" id="cTyping" style="top: 150px;"><i></i><i></i><i></i></div>
+          <div class="bot" id="cBot" style="top: 150px;">Das Dokument wurde gelesen und mit amtlichen Quellen abgeglichen.<br><br><b>Frist: 19.10.2026 (geschätzt)</b><br><br><b>Nächste Schritte:</b><br>• Prüfen Sie die erkannte Frist im Originaldokument.<br>• Stellen Sie die verlangten Unterlagen zusammen.<br><br><b>Amtliche Quellen:</b><br>• § 84 SGG<br><span style="color: #0066CC;">gesetze-im-internet.de/sgg/__84.html</span></div>
+        </div>
+        <div class="chat-foot"><div>Nachricht oder Foto</div><span class="send"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="ripple" class="abs"></div>
+
+<div id="letter" class="abs">
+  <div style="font-weight: 700; font-size: 15px;">Jobcenter Hamburg</div>
+  <div style="color: #636366;">Hamburg, den 13.09.2026</div>
+  <div style="margin-top: 22px; font-weight: 700; font-size: 17px;">Bescheid</div>
+  <div class="ln"></div><div class="ln" style="width: 86%;"></div><div class="ln"></div><div class="ln" style="width: 70%;"></div>
+  <div style="margin-top: 18px; font-weight: 700;">Rechtsbehelfsbelehrung</div>
+  <div style="margin-top: 4px;">Gegen diesen Bescheid kann innerhalb eines Monats nach seiner Bekanntgabe Widerspruch erhoben werden.</div>
+  <div class="ln"></div><div class="ln" style="width: 60%;"></div>
+</div>
+
+<!-- Captions next to the phone -->
+<div id="cap1" class="abs caption"><h2>Brief fotografieren.</h2><p>Bescheid, Rechnung oder Aufforderung. Foto oder PDF genügt.</p></div>
+<div id="cap2" class="abs caption"><h2>Verstehen.</h2><p>Gelesen und mit amtlichen Quellen abgeglichen.</p></div>
+<div id="cap3" class="abs caption"><h2>Frist erkannt.</h2><p>Nachvollziehbar berechnet. Mit Link zum Gesetz.</p></div>
+<div id="cap4" class="abs caption"><h2>Auch per WhatsApp.</h2><p>Foto in den Chat schicken. Die Antwort kommt zurück.</p></div>
+
+<!-- Finale -->
+<div id="words" class="abs center-x" style="top: 480px;">
+  <span class="word" id="w1"><i style="background: #000000;"></i>Fotografieren.</span><span class="word" id="w2"><i style="background: #DD0000;"></i>Verstehen.</span><span class="word" id="w3"><i style="background: #FFCC00;"></i>Handeln.</span>
+</div>
+<div id="outroLogo" class="abs" style="left: 0; top: 0;">
+  <div class="logo" style="--s: 0.9"><div class="logo-scale"><div class="logo-cluster"><span class="logo-c logo-top"></span><span class="logo-c logo-left"></span><span class="logo-c logo-right"></span></div></div></div>
+</div>
+<div id="outroTitle" class="abs center-x" style="top: 690px; font-size: 64px; font-weight: 700; letter-spacing: -0.035em;">Deutschland Assistent</div>
+<div id="outroSub" class="abs center-x" style="top: 784px; font-size: 28px; color: #636366;">Open Source · Werbefrei · github.com/doclifve/deutschland-assistent</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const p = (t, a, b, ease = easeOut) => ease(clamp((t - a) / (b - a)));
+// in/out window: fades in over [a,a+d], out over [b-d,b]
+const win = (t, a, b, d = 0.6) => Math.min(p(t, a, a + d), 1 - p(t, b - d, b, easeInOut));
+
+function set(el, o, x = 0, y = 0, s = 1) {
+  el.style.opacity = o;
+  el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+  el.style.visibility = o <= 0.001 ? "hidden" : "visible";
+}
+
+// Logo motion, identical to Variante C: 12 s spin, 3 s breathing, 0.3/0.6 s offsets.
+function poseLogos(t, speed = 1) {
+  const spin = (t * speed / 12) * 360;
+  const breath = (delay) => (1 - Math.cos(2 * Math.PI * (t * speed - delay) / 3)) / 2;
+  document.querySelectorAll(".logo-cluster").forEach((c) => {
+    c.style.transform = `rotate(${spin}deg)`;
+    const [top, left, right] = c.querySelectorAll(".logo-c");
+    top.style.transform = `translate(0, ${-26 * breath(0)}px)`;
+    left.style.transform = `translate(${-22 * breath(0.3)}px, ${14 * breath(0.3)}px)`;
+    right.style.transform = `translate(${22 * breath(0.6)}px, ${14 * breath(0.6)}px)`;
+  });
+}
+
+const DURATION = 27;
+const W = 1920;
+
+function render(t) {
+  poseLogos(t, t > 9 && t < 10.8 ? 2.2 : 1);
+
+  // Scene 1: logo + wordmark (0–3.2), logo rises for the headline (2.8–3.6)
+  const rise = p(t, 2.8, 3.8, easeInOut);
+  const introOut = 1 - p(t, 6.0, 6.6, easeInOut);
+  const logoW = 400, logoH = 375;
+  const lx = (W - logoW) / 2, ly = 300 - rise * 210;
+  set($("introLogo"), p(t, 0.1, 1.0) * introOut, lx, ly, 1 - rise * 0.45);
+  $("introLogo").style.transformOrigin = "200px 187px";
+  set($("introWord"), win(t, 0.9, 3.0), 0, (1 - p(t, 0.9, 1.6)) * 20);
+
+  // Scene 2: headline
+  set($("h1"), win(t, 3.3, 6.6), 0, (1 - p(t, 3.3, 4.0)) * 50 - 160);
+  set($("h2"), win(t, 3.9, 6.6), 0, (1 - p(t, 3.9, 4.6)) * 50 - 160);
+  $("h2").style.color = t < 4.9 ? "#8E8E93" : "#1D1D1F";
+  $("h2").style.transition = "none";
+
+  // Phone in (6.6–7.4), out (21.0–21.8)
+  const phoneIn = p(t, 6.6, 7.5);
+  const phoneOut = p(t, 21.0, 21.8, easeInOut);
+  set($("phone"), Math.min(phoneIn, 1 - phoneOut), 0, (1 - phoneIn) * 220 + phoneOut * 120);
+
+  // Screens inside the phone
+  const heroOut = p(t, 8.95, 9.2);
+  set($("sHero"), 1 - heroOut);
+  set($("sLoad"), Math.min(p(t, 9.2, 9.5), 1 - p(t, 10.75, 11.0)));
+  const resIn = p(t, 10.7, 11.4);
+  const resOut = p(t, 15.6, 16.0);
+  set($("sResult"), Math.min(resIn, 1 - resOut), 0, (1 - resIn) * 844);
+  set($("sChat"), p(t, 15.7, 16.1));
+
+  // Tap on the button (7.8–8.3)
+  const press = win(t, 7.8, 8.4, 0.15);
+  $("cta").style.transform = `scale(${1 - 0.05 * press})`;
+  const rip = p(t, 7.85, 8.5);
+  set($("ripple"), (1 - rip) * (t > 7.85 ? 1 : 0), 627, 832, 0.3 + rip * 0.9);
+
+  // Letter flies into the phone (8.3–9.2)
+  const fly = p(t, 8.2, 9.2, easeInOut);
+  const lxa = 1480, lya = 600, lxb = 627 - 160, lyb = 540 - 215;
+  set($("letter"), win(t, 7.9, 9.25, 0.35), lxa + (lxb - lxa) * fly, lya + (lyb - lya) * fly, 1 - fly * 0.7);
+  $("letter").style.transform += ` rotate(${-6 + fly * 6}deg)`;
+
+  // Result details
+  const pop = (a) => p(t, a, a + 0.45);
+  set($("rDate"), pop(11.5), 0, (1 - pop(11.5)) * 16, 0.9 + 0.1 * pop(11.5));
+  set($("rPill"), pop(12.0), 0, 0, 0.6 + 0.4 * pop(12.0));
+  set($("rSteps"), pop(12.5), 0, (1 - pop(12.5)) * 24);
+  set($("rSources"), pop(13.0), 0, (1 - pop(13.0)) * 24);
+  const ring = win(t, 12.0, 15.2, 0.4);
+  $("rDeadline").style.boxShadow = `0 0 0 ${4 * ring}px rgba(221, 0, 0, ${0.55 * ring})`;
+
+  // Chat
+  set($("cMe"), p(t, 16.4, 16.9), 0, (1 - p(t, 16.4, 16.9)) * 30, 0.9 + 0.1 * p(t, 16.4, 16.9));
+  set($("cTyping"), win(t, 17.2, 18.5, 0.2));
+  document.querySelectorAll("#cTyping i").forEach((d, i) => {
+    d.style.transform = `translateY(${-4 * Math.max(0, Math.sin((t * 6) - i * 0.9))}px)`;
+  });
+  set($("cBot"), p(t, 18.5, 19.1), 0, (1 - p(t, 18.5, 19.1)) * 20, 0.92 + 0.08 * p(t, 18.5, 19.1));
+
+  // Captions
+  const cap = (id, a, b) => set($(id), win(t, a, b, 0.5), (1 - p(t, a, a + 0.6)) * 40, -60);
+  cap("cap1", 7.2, 9.0);
+  cap("cap2", 9.0, 10.9);
+  cap("cap3", 10.9, 15.7);
+  cap("cap4", 15.7, 21.2);
+
+  // Finale: three words, then logo + title
+  const wordsOut = 1 - p(t, 24.2, 24.8, easeInOut);
+  ["w1", "w2", "w3"].forEach((id, i) => {
+    const a = 22.0 + i * 0.55;
+    set($(id), p(t, a, a + 0.5) * wordsOut, 0, (1 - p(t, a, a + 0.5)) * 40);
+  });
+  const outro = p(t, 24.6, 25.4);
+  set($("outroLogo"), outro, (W - 288) / 2, 330 + (1 - outro) * 30);
+  set($("outroTitle"), outro, 0, (1 - outro) * 30);
+  set($("outroSub"), p(t, 25.0, 25.8), 0, (1 - p(t, 25.0, 25.8)) * 20);
+}
+window.render = render;
+window.DURATION = DURATION;
+render(0);
+</script>
+</body>
+</html>
