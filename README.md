@@ -190,3 +190,8 @@ The deterministic extraction tests cover deadlines and legal references. Add an 
 ## License
 
 Apache-2.0 for original project code unless a file says otherwise. External components and data sources retain their own licenses and terms.
+
+
+## Logo motion
+
+The web app logo is intentionally alive: the three black, red and gold circles breathe apart and back together with a slight phase shift while the whole cluster rotates slowly. Their multiply-blended intersections continuously create changing color mixtures. Motion is disabled automatically when the operating system requests reduced motion.
