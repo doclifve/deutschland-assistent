@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, Header, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
-from .appointments import prepare_appointment
+from .appointments import prepare_appointment as prepare_appointment_plan
 from .channels import channels_info
 from .actions import ActionStore, fill_pdf_form, inspect_pdf_form, new_action
 from .agent_planning import map_profile_to_form
@@ -280,7 +280,7 @@ async def chat_endpoint(req: ChatRequest):
 @app.post("/v1/appointments/prepare", response_model=AppointmentPlan)
 def appointments_prepare(req: AppointmentRequest):
     """Find official routes, likely documents and next steps. This endpoint never books."""
-    return prepare_appointment(req.concern, req.postal_code)
+    return prepare_appointment_plan(req.concern, req.postal_code)
 
 
 @app.post("/v1/letters/draft", response_model=LetterDraft)
