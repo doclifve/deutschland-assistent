@@ -6,7 +6,7 @@ import time
 import uuid
 from urllib.parse import quote
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
@@ -21,7 +21,8 @@ from .letters import draft_letter, extract_reference
 from .evidence import EvidenceEngine
 from .feiertage import STATES
 from .answer_generation import generate_grounded_explanation
-from .model_provider import ModelProviderError, build_model_provider
+from .byok import provider_from_headers, providers_info
+from .model_provider import ModelProvider, ModelProviderError, build_model_provider
 from .extraction import (
     classify_document,
     extract_appeal_instruction,
@@ -129,6 +130,11 @@ def attachment_headers(filename: str, fallback: str = "dokument.pdf") -> dict[st
     return {"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name, safe='')}"}
 
 
+def request_provider(request: Request) -> ModelProvider:
+    """Eigener Schlüssel aus den X-LLM-*-Headern, sonst der serverweite Standard."""
+    return provider_from_headers(request) or model_provider
+
+
 def primary_deadline(deadlines: list[Deadline], relative: list[RelativeDeadline]) -> Deadline | None:
     if deadlines:
         return min(deadlines, key=lambda d: d.date)
@@ -167,6 +173,27 @@ def health():
 def channels():
     """Public connection details for messaging channels (currently WhatsApp)."""
     return channels_info()
+
+
+@app.get("/v1/llm/providers")
+def llm_providers():
+    """Welche Sprachmodell-Anbieter mit eigenem Schlüssel nutzbar sind und ob der Server selbst eines hat."""
+    return providers_info(model_provider)
+
+
+@app.post("/v1/llm/test")
+async def llm_test(provider: ModelProvider = Depends(request_provider)):
+    """Prüft die übergebenen (oder serverseitigen) Zugangsdaten mit einer minimalen Anfrage."""
+    if not provider.enabled:
+        raise HTTPException(503, "Kein Sprachmodell konfiguriert. Bitte eigenen API-Schlüssel angeben.")
+    try:
+        result = await provider.structured_generate(
+            system_prompt='Antworte nur mit dem JSON-Objekt {"ok": true}.',
+            user_prompt="Verbindungstest",
+        )
+    except ModelProviderError as exc:
+        raise HTTPException(502, str(exc)) from None
+    return {"ok": True, "model_answered": bool(result)}
 
 
 @app.get("/v1/sources")
@@ -284,10 +311,10 @@ def _analysis_for_document(document_id: str | None) -> DocumentAnalysis | None:
 
 
 @app.post("/v1/chat", response_model=ChatResponse)
-async def chat_endpoint(req: ChatRequest):
+async def chat_endpoint(req: ChatRequest, provider: ModelProvider = Depends(request_provider)):
     analysis = _analysis_for_document(req.document_id)
     return await chat_with_assistant(
-        model_provider,
+        provider,
         engine,
         messages=req.messages,
         language=req.language,
@@ -339,7 +366,7 @@ def _stored_form(form_id: str):
 
 
 @app.post("/v1/forms/{form_id}/suggest", response_model=FormSuggestions)
-async def forms_suggest(form_id: str, req: FormSuggestRequest):
+async def forms_suggest(form_id: str, req: FormSuggestRequest, provider: ModelProvider = Depends(request_provider)):
     """Suggest field values only from user data / document facts; never invent personal data."""
     from .forms import clean_profile
 
@@ -355,7 +382,7 @@ async def forms_suggest(form_id: str, req: FormSuggestRequest):
     notes: list[str] = []
     if req.use_model_for_mapping and unmatched:
         try:
-            suggestions += await suggest_by_model(model_provider, unmatched, ctx)
+            suggestions += await suggest_by_model(provider, unmatched, ctx)
         except ModelProviderError as exc:
             notes.append(f"Zuordnung per Sprachmodell nicht verfügbar: {exc}")
     filled = {s.field_id for s in suggestions}
@@ -455,13 +482,15 @@ def prepare_form_fill(form_id: str, req: FormFillPrepareRequest):
 
 
 @app.post("/v1/forms/{form_id}/agent-prepare", response_model=ActionPreview)
-async def agent_prepare_form(form_id: str, req: FormAgentPrepareRequest):
+async def agent_prepare_form(
+    form_id: str, req: FormAgentPrepareRequest, provider: ModelProvider = Depends(request_provider)
+):
     form = ACTION_STORE.get_form(form_id)
     if not form:
         raise HTTPException(404, "Formular nicht gefunden oder abgelaufen.")
     try:
         mapping = await map_profile_to_form(
-            model_provider,
+            provider,
             fields=form.fields,
             profile=req.profile,
             notes=req.notes,
@@ -591,7 +620,7 @@ def complete_external_action(
 
 
 @app.post("/v1/ask", response_model=CivicAnswer)
-async def ask(req: AskRequest):
+async def ask(req: AskRequest, provider: ModelProvider = Depends(request_provider)):
     text = req.message
     analysis = None
     if req.document_id:
@@ -635,7 +664,7 @@ async def ask(req: AskRequest):
     generated_meaning: str | None = None
     try:
         generated_meaning = await generate_grounded_explanation(
-            model_provider,
+            provider,
             question=req.message,
             analysis=analysis,
             bundle=bundle,

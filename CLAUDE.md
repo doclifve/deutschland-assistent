@@ -8,7 +8,8 @@ Grundprinzip: Das Modell ist nicht die Quelle der Wahrheit; maßgeblich sind Ori
 - `services/civic-core/` – FastAPI-Kern (Python ≥ 3.11). `deutschland_assistent/main.py` = alle Endpunkte;
   `extraction.py` (deterministische Fristen/Zitate/Rechtsbehelfe), `evidence.py` (Gesetze im Internet, NeuRIS,
   Leistungsregister), `answer_generation.py`/`chat.py`/`model_provider.py` (optionales LLM, OpenAI-kompatibel),
-  `actions.py`/`forms.py`/`appointments.py`/`letters.py` (bestätigungspflichtige Agenten), `data/*.json` (Register).
+  `actions.py`/`forms.py`/`appointments.py`/`letters.py` (bestätigungspflichtige Agenten), `data/*.json` (Register),
+  `byok.py` (eigener API-Schlüssel pro Anfrage), `feiertage.py` (Feiertage für Fristen).
 - `apps/web/` – Next.js 16 / React 19, eine Seite `app/page.tsx`.
 - `channels/whatsapp-cloud/` – WhatsApp-Cloud-API-Adapter (FastAPI), `channels/openclaw/` – OpenClaw-Skill.
 - `docs/` – Architektur, Bedrohungsmodell, Datenquellen, Roadmap.

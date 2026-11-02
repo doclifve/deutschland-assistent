@@ -13,6 +13,8 @@ Sprachmodelle dürfen Evidenz **erklären, übersetzen und ordnen**. Sie dürfen
 - Jede generierte Aussage muss mindestens eine bekannte Evidence-ID referenzieren.
 - Generierte Datums- und Paragraphenangaben müssen in der referenzierten Evidenz vorkommen; sonst wird die Aussage verworfen.
 - Fällt das Modell aus oder verletzt es das Antwortschema, bleibt der deterministische Fallback aktiv.
+- Eigene API-Schlüssel der Nutzerinnen und Nutzer (Header `X-LLM-*`) gelten nur für die einzelne Anfrage. Sie werden weder gespeichert noch protokolliert. Dieselben Regeln gelten unabhängig vom gewählten Anbieter.
+- Liegt die Verarbeitung eines Anbieters außerhalb Deutschlands, weist die Oberfläche darauf hin. Betreiber können eigene Schlüssel mit `BYOK_ALLOWED_PROVIDERS` auf Anbieter in Deutschland beschränken.
 
 Leitprinzip:
 

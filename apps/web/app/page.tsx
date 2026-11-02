@@ -10,6 +10,45 @@ const BUNDESLAENDER: Record<string, string> = {
 
 const API = process.env.NEXT_PUBLIC_CIVIC_API_URL || "http://localhost:8000";
 
+// Eigener KI-Schlüssel ("Bring your own key"): bleibt im Browser und geht nur an Endpunkte, die ein Modell nutzen.
+type LlmProvider = {
+  id: string; label: string; region: string; default_model: string | null;
+  model_required: boolean; key_hint: string; docs_url: string;
+};
+type LlmInfo = { server_llm_configured: boolean; byok_enabled: boolean; custom_base_url_allowed: boolean; providers: LlmProvider[] };
+type LlmSettings = { provider: string; apiKey: string; model: string; baseUrl: string; remember: boolean };
+const EMPTY_LLM: LlmSettings = { provider: "", apiKey: "", model: "", baseUrl: "", remember: false };
+const LLM_STORAGE_KEY = "llm-settings";
+
+function loadLlmSettings(): LlmSettings {
+  for (const store of ["sessionStorage", "localStorage"] as const) {
+    try {
+      const raw = window[store].getItem(LLM_STORAGE_KEY);
+      if (raw) return { ...EMPTY_LLM, ...JSON.parse(raw) };
+    } catch {}
+  }
+  return EMPTY_LLM;
+}
+
+function saveLlmSettings(s: LlmSettings) {
+  try {
+    window.sessionStorage.removeItem(LLM_STORAGE_KEY);
+    window.localStorage.removeItem(LLM_STORAGE_KEY);
+    if (s.provider) (s.remember ? window.localStorage : window.sessionStorage).setItem(LLM_STORAGE_KEY, JSON.stringify(s));
+  } catch {}
+}
+
+function llmHeaders(s: LlmSettings): Record<string, string> {
+  if (!s.provider || (!s.apiKey && s.provider !== "custom")) return {};
+  const h: Record<string, string> = { "X-LLM-Provider": s.provider };
+  if (s.apiKey) h["X-LLM-Api-Key"] = s.apiKey;
+  if (s.model.trim()) h["X-LLM-Model"] = s.model.trim();
+  if (s.provider === "custom" && s.baseUrl.trim()) h["X-LLM-Base-Url"] = s.baseUrl.trim();
+  return h;
+}
+
+const REGION_LABEL: Record<string, string> = { DE: "Deutschland", EU: "EU", US: "USA" };
+
 type View = "home" | "loading" | "result";
 
 type WhatsAppChannel = { enabled: boolean; display_number: string | null; link: string | null; greeting: string };
@@ -67,6 +106,43 @@ export default function Home() {
   const [question, setQuestion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [llmInfo, setLlmInfo] = useState<LlmInfo | null>(null);
+  const [llm, setLlm] = useState<LlmSettings>(EMPTY_LLM);
+  const [llmStatus, setLlmStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [llmBusy, setLlmBusy] = useState(false);
+  useEffect(() => {
+    setLlm(loadLlmSettings());
+    fetch(API + "/v1/llm/providers")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setLlmInfo(d))
+      .catch(() => {});
+  }, []);
+  function updateLlm(patch: Partial<LlmSettings>) {
+    const next = { ...llm, ...patch };
+    setLlm(next);
+    saveLlmSettings(next);
+    setLlmStatus(null);
+  }
+  function clearLlm() {
+    setLlm(EMPTY_LLM);
+    saveLlmSettings(EMPTY_LLM);
+    setLlmStatus({ ok: true, text: "Schlüssel aus diesem Browser gelöscht." });
+  }
+  async function testLlm() {
+    setLlmBusy(true);
+    setLlmStatus(null);
+    try {
+      const r = await fetch(API + "/v1/llm/test", { method: "POST", headers: llmHeaders(llm) });
+      if (!r.ok) throw await apiError(r);
+      setLlmStatus({ ok: true, text: "Verbindung erfolgreich. Ihr Schlüssel wird jetzt für Antworten und Agenten genutzt." });
+    } catch (e) {
+      setLlmStatus({ ok: false, text: errorText(e) });
+    } finally {
+      setLlmBusy(false);
+    }
+  }
+  const selectedProvider = llmInfo?.providers.find((p) => p.id === llm.provider);
+  const ownKeyActive = Object.keys(llmHeaders(llm)).length > 0;
   // Bundesland der Behörde: nur für Feiertage bei der Fristberechnung, bleibt im Browser gespeichert.
   const [bundesland, setBundesland] = useState("");
   useEffect(() => {
@@ -121,7 +197,7 @@ export default function Home() {
   async function askApi(message: string, documentId?: string) {
     const r = await fetch(API + "/v1/ask", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...llmHeaders(llm) },
       body: JSON.stringify({ message, language: "de", document_id: documentId, bundesland: bundesland || undefined }),
     });
     if (!r.ok) throw r.status === 404 ? new Error("Das Dokument ist abgelaufen. Bitte erneut hochladen.") : await apiError(r);
@@ -214,7 +290,7 @@ export default function Home() {
     try {
       const r = await fetch(API + "/v1/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...llmHeaders(llm) },
         body: JSON.stringify({ messages: next, language: "de" }),
       });
       if (!r.ok) throw await apiError(r);
@@ -293,7 +369,7 @@ export default function Home() {
       const profile = profileFromText(formProfile);
       const r = await fetch(API + `/v1/forms/${formInspection.form_id}/agent-prepare`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...llmHeaders(llm) },
         body: JSON.stringify({ profile }),
       });
       if (!r.ok) throw await apiError(r);
@@ -609,12 +685,86 @@ export default function Home() {
       )}
 
 
+      {llmInfo && (llmInfo.byok_enabled || llmInfo.server_llm_configured) && (
+        <section className="section" id="ki-schluessel">
+          <p className="section-eyebrow">Sprachmodell</p>
+          <h2 className="section-title">Ihr eigener KI-Schlüssel.</h2>
+          <p className="section-sub">
+            {llmInfo.server_llm_configured
+              ? "Dieser Server hat bereits ein Sprachmodell. Optional können Sie stattdessen Ihr eigenes Konto nutzen."
+              : "Dieser Server hat kein eigenes Sprachmodell. Mit Ihrem API-Schlüssel nutzen Sie Chat, Erklärungen und den Formular-Agenten."}{" "}
+            Ohne Schlüssel funktionieren Fristen, Quellen und Dokumentanalyse trotzdem.
+          </p>
+          {llmInfo.byok_enabled ? (
+            <div className="agent-card llm-card">
+              <div className="agent-form agent-form-stack">
+                <label className="field">
+                  <span>Anbieter</span>
+                  <select value={llm.provider} onChange={(e) => updateLlm({ provider: e.target.value, model: "", baseUrl: "" })}>
+                    <option value="">{llmInfo.server_llm_configured ? "Sprachmodell des Servers verwenden" : "Kein Sprachmodell"}</option>
+                    {llmInfo.providers.map((p) => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                  </select>
+                </label>
+                {selectedProvider && (
+                  <>
+                    {llm.provider === "custom" && (
+                      <label className="field">
+                        <span>Endpunkt-URL (OpenAI-kompatibel, HTTPS)</span>
+                        <input value={llm.baseUrl} onChange={(e) => updateLlm({ baseUrl: e.target.value })} placeholder="https://…/v1" inputMode="url" />
+                      </label>
+                    )}
+                    <label className="field">
+                      <span>API-Schlüssel – {selectedProvider.key_hint}</span>
+                      <input type="password" autoComplete="off" spellCheck={false} value={llm.apiKey}
+                        onChange={(e) => updateLlm({ apiKey: e.target.value })} placeholder="Schlüssel einfügen" />
+                    </label>
+                    <label className="field">
+                      <span>Modell{selectedProvider.model_required ? "" : " (optional)"}</span>
+                      <input value={llm.model} onChange={(e) => updateLlm({ model: e.target.value })}
+                        placeholder={selectedProvider.default_model || "Modellname des Anbieters"} spellCheck={false} />
+                    </label>
+                    <label className="check">
+                      <input type="checkbox" checked={llm.remember} onChange={(e) => updateLlm({ remember: e.target.checked })} />
+                      <span>Auf diesem Gerät merken (sonst nur bis zum Schließen des Tabs)</span>
+                    </label>
+                    {selectedProvider.region !== "DE" && (
+                      <p className="notice">
+                        Hinweis: Ihre Fragen und Auszüge aus Dokumenten werden an {selectedProvider.label} übermittelt
+                        {REGION_LABEL[selectedProvider.region] ? ` (Verarbeitung: ${REGION_LABEL[selectedProvider.region]})` : ""}.
+                        Für Daten mit Personenbezug empfehlen wir einen Anbieter mit Verarbeitung in Deutschland.
+                      </p>
+                    )}
+                    <div className="action-buttons">
+                      <button className="button" type="button" onClick={testLlm}
+                        disabled={llmBusy || (!llm.apiKey && llm.provider !== "custom") || (selectedProvider.model_required && !llm.model.trim())}>
+                        {llmBusy ? "Prüfe …" : "Verbindung testen"}
+                      </button>
+                      <button className="link-button" type="button" onClick={clearLlm}>Schlüssel löschen</button>
+                    </div>
+                  </>
+                )}
+                {llmStatus && <p className={llmStatus.ok ? "success" : "error"} role="status">{llmStatus.text}</p>}
+                <p className="agent-muted">
+                  {ownKeyActive
+                    ? `Aktiv: Ihr Schlüssel für ${selectedProvider?.label ?? llm.provider}. `
+                    : ""}
+                  Der Schlüssel bleibt in Ihrem Browser und wird nur bei Anfragen an ein Sprachmodell mitgeschickt.
+                  Der Server speichert und protokolliert ihn nicht.
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      )}
+
       <section className="section section-grey" id="assistant-chat">
         <p className="section-eyebrow">Der Assistent</p>
         <h2 className="section-title">Schreiben. Fragen. Erledigen.</h2>
         <p className="section-sub">
-          Mit konfiguriertem Deutschland-LLM können Sie frei schreiben. Bei Behörden- und Rechtsfragen
-          werden amtliche Quellen eingebunden.
+          Mit einem Sprachmodell können Sie frei schreiben – über den Server oder mit Ihrem eigenen API-Schlüssel.
+          Bei Behörden- und Rechtsfragen werden amtliche Quellen eingebunden.
         </p>
         <div className="agent-grid">
           <div className="agent-card">

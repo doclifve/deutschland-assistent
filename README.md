@@ -43,7 +43,7 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - Fragen über eine einfache Weboberfläche stellen.
 - WhatsApp anbinden: Texte, Fotos und Dokumente können über die WhatsApp Cloud API in denselben Analyse-Workflow gelangen.
 - OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
-- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als Erklärungsschicht hinter der Evidence Engine verwenden.
+- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als Erklärungsschicht hinter der Evidence Engine verwenden – oder mit dem **eigenen API-Schlüssel** (IONOS, STACKIT, Mistral, Claude, OpenAI) direkt in der Weboberfläche.
 - Mit dem LLM **frei chatten und Folgefragen stellen**; bei Behörden- und Rechtsfragen wird weiterhin amtliche Evidenz eingebunden.
 - **Termine als Agentenaktion vorbereiten** und erst nach einer expliziten Nutzerbestätigung an einen freigegebenen Browser-/Behörden-Connector übergeben.
 - **Ausfüllbare PDF-Formulare erkennen und ausfüllen**; Profildaten können per LLM auf vorhandene PDF-Felder abgebildet werden. Das fertige PDF wird erst nach Bestätigung erzeugt.
@@ -278,13 +278,17 @@ Dokument hochladen:
 | NEURIS_CACHE_TTL_SECONDS | 900 | TTL des lokalen API-Caches |
 | NEURIS_MAX_RETRIES | 2 | Wiederholungen bei 429/5xx |
 | NEURIS_ENRICH_CASE_LAW | true | wichtige Rechtsprechungstreffer über den Detail-Endpunkt anreichern |
-| LLM_PROVIDER | disabled | disabled, germany_hosted, openai_compatible oder ollama |
-| LLM_BASE_URL | – | OpenAI-kompatibler /v1-Endpunkt |
-| LLM_MODEL | – | Modellname am Inferenz-Endpunkt |
+| LLM_PROVIDER | disabled | disabled, ein Anbieter (ionos, stackit, mistral, anthropic, openai) oder germany_hosted, openai_compatible, ollama |
+| LLM_BASE_URL | – | OpenAI-kompatibler /v1-Endpunkt (bei Anbieter-Voreinstellungen nicht nötig) |
+| LLM_MODEL | – | Modellname; bei Voreinstellungen optional (Standardmodell des Anbieters) |
 | LLM_API_KEY | – | optionaler API-Schlüssel; nie committen |
 | LLM_REGION | DE | bei germany_hosted zwingend DE |
 | LLM_TIMEOUT_SECONDS | 60 | Timeout der Erklärungsschicht |
-| LLM_MAX_TOKENS | 900 | maximale Antwortlänge der Erklärungsschicht |
+| LLM_MAX_TOKENS | 900 | maximale Antwortlänge (Claude: mindestens 16000, da Thinking mitzählt) |
+| LLM_EFFORT | – | nur Claude: low, medium, high, xhigh oder max |
+| BYOK_ENABLED | true | Nutzerinnen und Nutzer dürfen einen eigenen API-Schlüssel mitschicken |
+| BYOK_ALLOWED_PROVIDERS | alle außer custom | Komma-Liste erlaubter Anbieter für eigene Schlüssel |
+| BYOK_ALLOW_CUSTOM_BASE_URL | false | eigene Endpunkt-URLs erlauben (nur öffentliches HTTPS; Risiko SSRF) |
 | WHATSAPP_PUBLIC_NUMBER | – | öffentliche WhatsApp-Nummer im E.164-Format |
 | WHATSAPP_GREETING | Hallo | vorausgefüllte Begrüßung im Chat |
 | WHATSAPP_APP_SECRET | – | Prüfung der Meta-Webhook-Signatur; in Produktion erforderlich |
@@ -405,6 +409,41 @@ Beispiel für die interne Evidenzkette:
 Rechtsprechung bleibt dabei eine eigene Evidenzart und wird **nicht** wie eine Gesetzesnorm behandelt.
 
 Die API befindet sich weiterhin in der Testphase. Deshalb bleibt **Gesetze im Internet** für explizite Normzitate ein unabhängiger amtlicher Fallback.
+
+## Mit eigenem API-Schlüssel nutzen
+
+Der Assistent funktioniert ohne Sprachmodell. Chat, Erklärungen und Formular-Agent werden erst mit einem Modell freigeschaltet, und dafür reicht ein **eigener API-Schlüssel**. Es gibt zwei Wege:
+
+**1. In der Weboberfläche (jede Person mit eigenem Konto):** Abschnitt „Ihr eigener KI-Schlüssel“ → Anbieter wählen, Schlüssel einfügen, „Verbindung testen“. Der Schlüssel bleibt im Browser (standardmäßig nur bis zum Schließen des Tabs, optional „auf diesem Gerät merken“) und wird nur bei Anfragen an ein Sprachmodell mitgeschickt. Der Server speichert und protokolliert ihn nicht.
+
+**2. Für den ganzen Server (Betreiber):** in `.env` einen Anbieter eintragen, zum Beispiel
+
+    LLM_PROVIDER=ionos        # oder stackit, mistral, anthropic, openai
+    LLM_API_KEY=<ihr-schlüssel>
+    LLM_MODEL=                # optional, sonst Standardmodell des Anbieters
+
+| Anbieter | `LLM_PROVIDER` | Verarbeitung | Standardmodell |
+|---|---|---|---|
+| IONOS AI Model Hub | `ionos` | Deutschland | `openai/gpt-oss-120b` |
+| STACKIT AI Model Serving | `stackit` | Deutschland | – (Modell angeben) |
+| Mistral AI | `mistral` | EU | `mistral-large-latest` |
+| Anthropic Claude | `anthropic` | USA | `claude-opus-5-5` |
+| OpenAI | `openai` | USA | – (Modell angeben) |
+| Eigener Endpunkt | `custom` bzw. `openai_compatible` | je nach Betrieb | – |
+
+Über die API funktioniert der eigene Schlüssel pro Anfrage mit Headern, zum Beispiel:
+
+    curl -X POST http://localhost:8000/v1/chat \
+      -H 'Content-Type: application/json' \
+      -H 'X-LLM-Provider: mistral' \
+      -H "X-LLM-Api-Key: $MISTRAL_API_KEY" \
+      -d '{"messages":[{"role":"user","content":"Was ist Wohngeld?"}]}'
+
+`X-LLM-Model` ist optional, `X-LLM-Base-Url` gibt es nur für `custom`. `GET /v1/llm/providers` listet die erlaubten Anbieter, `POST /v1/llm/test` prüft einen Schlüssel. Die Header wirken auf `/v1/ask`, `/v1/chat`, `/v1/forms/{id}/suggest` und `/v1/forms/{id}/agent-prepare`.
+
+Bei Claude nutzt der Core das offizielle `anthropic`-SDK. Für unterstützte Modelle ist der serverseitige Fallback bei Ablehnungen durch Sicherheitsklassifikatoren aktiv (`fallbacks: "default"`).
+
+Für personenbezogene Behördenpost empfehlen wir einen Anbieter mit Verarbeitung in Deutschland. Die Oberfläche weist bei anderen Regionen darauf hin.
 
 ## Deutschland-gehostetes Sprachmodell
 

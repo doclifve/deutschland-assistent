@@ -14,6 +14,7 @@ description: Neuen Endpunkt im Civic Core (FastAPI, services/civic-core/deutschl
   den Dateinamen roh in `Content-Disposition` schreiben (führt bei Umlauten/Kyrillisch zu HTTP 500).
 - Speicher nur im RAM mit TTL (`DocumentStore`, `FormStore`, `ActionStore`); keine Dateien auf Platte, keine Logs mit Inhalten.
 - Externe/LLM-Fehler als `ModelProviderError` fangen und deterministisch weiterantworten.
+- Sprachmodell nie über das globale `model_provider` holen, sondern per `provider: ModelProvider = Depends(request_provider)`. Nur so greift der eigene Schlüssel der Nutzerin bzw. des Nutzers (`byok.py`, Header `X-LLM-*`). Im Frontend `...llmHeaders(llm)` nur bei diesen Endpunkten mitsenden.
 - Neue Umgebungsvariablen in `main.py` lesen **und** in `.env.example`, `docker-compose.yml` und README dokumentieren.
 
 ## Frontend
