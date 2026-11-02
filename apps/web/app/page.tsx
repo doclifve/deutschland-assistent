@@ -165,7 +165,23 @@ export default function Home() {
   const howRef = useRef<HTMLElement>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppChannel | null>(null);
   const [qr, setQr] = useState<string | null>(null);
-  const [chatMessages, setChatMessages] = useState<Array<{role:"user"|"assistant";content:string}>>([]);
+  type ChatAction = { type: string; label: string; description?: string; prefill?: Record<string, string> };
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string; actions?: ChatAction[] }>>([]);
+  const appointmentCard = useRef<HTMLDivElement>(null);
+  const formCard = useRef<HTMLDivElement>(null);
+  const appointmentServiceInput = useRef<HTMLInputElement>(null);
+  // Vorschlag aus dem Chat übernehmen: passende Karte vorbelegen und in den Blick holen.
+  function startAction(a: ChatAction) {
+    if (a.type === "appointment") {
+      setAppointmentService(a.prefill?.service ?? "");
+      if (a.prefill?.location) setAppointmentLocation(a.prefill.location);
+      setAppointmentAction(null);
+      appointmentCard.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => appointmentServiceInput.current?.focus({ preventScroll: true }), 400);
+    } else if (a.type === "form_fill") {
+      formCard.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [appointmentService, setAppointmentService] = useState("");
@@ -287,7 +303,7 @@ export default function Home() {
     e.preventDefault();
     const message = chatInput.trim();
     if (!message || chatBusy) return;
-    const next = [...chatMessages, { role: "user" as const, content: message }];
+    const next = [...chatMessages.map(({ role, content }) => ({ role, content })), { role: "user" as const, content: message }];
     setChatMessages(next);
     setChatInput("");
     setChatBusy(true);
@@ -299,7 +315,7 @@ export default function Home() {
       });
       if (!r.ok) throw await apiError(r);
       const data = await r.json();
-      setChatMessages([...next, { role: "assistant", content: data.message }]);
+      setChatMessages([...next, { role: "assistant", content: data.message, actions: data.suggested_actions || [] }]);
     } catch (e) {
       setChatMessages([...next, { role: "assistant", content: errorText(e) }]);
     } finally {
@@ -776,7 +792,14 @@ export default function Home() {
             <div className="chat-box" aria-live="polite">
               {chatMessages.length === 0 && <p className="agent-muted">Fragen Sie zum Beispiel: „Welche Unterlagen brauche ich für einen neuen Personalausweis?“</p>}
               {chatMessages.map((m, i) => (
-                <div key={i} className={`chat-message chat-${m.role}`}>{m.content}</div>
+                <div key={i} className={`chat-message chat-${m.role}`}>
+                  {m.content}
+                  {m.actions?.filter((a) => a.type === "appointment" || a.type === "form_fill").map((a) => (
+                    <button key={a.type} type="button" className="chat-action" onClick={() => startAction(a)}>
+                      {a.label}{a.prefill?.service ? `: ${a.prefill.service}` : ""} ›
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
             <form className="agent-form" onSubmit={chatSubmit}>
@@ -787,11 +810,11 @@ export default function Home() {
             </form>
           </div>
 
-          <div className="agent-card">
+          <div className="agent-card" ref={appointmentCard}>
             <h3>Termin vorbereiten</h3>
             <p className="agent-muted">Der Assistent bereitet den Termin vor und führt Sie nach Ihrer Bestätigung zur amtlichen Buchungsseite. Buchen Sie dort selbst – eine automatische Buchung gibt es noch nicht.</p>
             <form className="agent-form agent-form-stack" onSubmit={prepareAppointment}>
-              <input value={appointmentService} onChange={(e) => setAppointmentService(e.target.value)} placeholder="z. B. Personalausweis beantragen" required />
+              <input ref={appointmentServiceInput} value={appointmentService} onChange={(e) => setAppointmentService(e.target.value)} placeholder="z. B. Personalausweis beantragen" required />
               <input value={appointmentLocation} onChange={(e) => setAppointmentLocation(e.target.value)} placeholder="Ort / Behörde (optional)" />
               <input value={appointmentUrl} onChange={(e) => setAppointmentUrl(e.target.value)} placeholder="Amtliche Buchungsseite (optional, z. B. https://service.berlin.de/…)" inputMode="url" />
               <button className="button" type="submit" disabled={!appointmentService.trim()}>Vorschau erstellen</button>
@@ -825,7 +848,7 @@ export default function Home() {
             )}
           </div>
 
-          <div className="agent-card">
+          <div className="agent-card" ref={formCard}>
             <h3>PDF-Formular ausfüllen</h3>
             <p className="agent-muted">Ausfüllbares PDF hochladen. Der Formular-Agent ordnet Ihre Angaben den vorhandenen Feldern zu. Das PDF wird erst nach Bestätigung erzeugt.</p>
             <input ref={formAgentInput} className="visually-hidden" type="file" accept=".pdf,application/pdf" onChange={(e) => inspectAgentForm(e.target.files?.[0])} />

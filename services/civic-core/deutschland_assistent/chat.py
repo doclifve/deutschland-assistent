@@ -6,6 +6,7 @@ import re
 from pydantic import BaseModel, Field, ValidationError
 
 from .answer_generation import generate_grounded_explanation
+from .appointments import match_concern
 from .evidence import EvidenceEngine
 from .extraction import extract_leika_ids, extract_legal_references
 from .model_provider import ModelProvider, ModelProviderError
@@ -81,14 +82,12 @@ async def chat(
                     warnings=warnings,
                     model_used=False,
                 )
+        suggestions = _suggest_actions(latest)
         return ChatResponse(
-            message=(
-                "Die freie Chat-Funktion benötigt ein konfiguriertes Sprachmodell. "
-                "Dokumentanalyse und amtliche Evidenzsuche funktionieren weiterhin ohne LLM."
-            ),
+            message=_fallback_message(suggestions),
             evidence=bundle.items,
             sources=bundle.items,
-            suggested_actions=_suggest_actions(latest),
+            suggested_actions=suggestions,
             warnings=warnings,
             model_used=False,
         )
@@ -158,7 +157,7 @@ async def chat(
             model_used=True,
         )
 
-    suggestions = draft.suggested_actions or _suggest_actions(latest)
+    suggestions = _with_prefill(draft.suggested_actions or _suggest_actions(latest), latest)
     return ChatResponse(
         message=draft.message,
         evidence=bundle.items,
@@ -185,12 +184,14 @@ def _looks_civic(text: str, analysis: DocumentAnalysis | None) -> bool:
 
 def _suggest_actions(text: str) -> list[AgentActionSuggestion]:
     out: list[AgentActionSuggestion] = []
+    concern = match_concern(text)
     if re.search(r"\b(termin|appointment|buchen|reservieren|vorsprechen)\b", text, re.I):
         out.append(
             AgentActionSuggestion(
                 type="appointment",
                 label="Termin vorbereiten",
                 description="Terminwunsch als bestätigungspflichtige Aktion vorbereiten.",
+                prefill={"service": concern["title"]} if concern else {},
             )
         )
     if re.search(r"\b(widerspruch|einspruch|fristverlängerung|frist verlaengern|nachreichen|antwortschreiben|brief an die behörde)\b", text, re.I):
@@ -210,3 +211,28 @@ def _suggest_actions(text: str) -> list[AgentActionSuggestion]:
             )
         )
     return out[:2]
+
+
+def _with_prefill(suggestions: list[AgentActionSuggestion], text: str) -> list[AgentActionSuggestion]:
+    """Termin-Vorschläge mit dem passenden Anliegen aus dem Terminregister vorbelegen (deterministisch)."""
+    concern = match_concern(text)
+    for suggestion in suggestions:
+        if suggestion.type == "appointment" and concern and not suggestion.prefill.get("service"):
+            suggestion.prefill = {**suggestion.prefill, "service": concern["title"]}
+    return suggestions
+
+
+def _fallback_message(suggestions: list[AgentActionSuggestion]) -> str:
+    """Antwort ohne Sprachmodell: auf passende Assistenten verweisen statt nur auf die fehlende KI."""
+    if any(s.type == "appointment" for s in suggestions):
+        return (
+            "Den Termin bereite ich mit Ihnen vor: Wählen Sie unten „Termin vorbereiten“. Nach Ihrer Bestätigung "
+            "führe ich Sie zur amtlichen Buchungsseite – buchen müssen Sie dort selbst."
+        )
+    if suggestions:
+        labels = " oder ".join(f"„{s.label}“" for s in suggestions)
+        return f"Dafür gibt es einen Assistenten: Wählen Sie unten {labels}."
+    return (
+        "Die freie Chat-Funktion benötigt ein Sprachmodell – hinterlegen Sie oben Ihren eigenen KI-Schlüssel. "
+        "Dokumentanalyse, Fristen und amtliche Quellen funktionieren auch ohne."
+    )
