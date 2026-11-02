@@ -48,6 +48,10 @@ function llmHeaders(s: LlmSettings): Record<string, string> {
 }
 
 const REGION_LABEL: Record<string, string> = { DE: "Deutschland", EU: "EU", US: "USA" };
+const STATUS_LABEL: Record<string, string> = {
+  prepared: "Vorschau – wartet auf Ihre Bestätigung", approved: "Freigegeben", completed: "Erledigt",
+  cancelled: "Abgebrochen", failed: "Fehlgeschlagen",
+};
 
 type View = "home" | "loading" | "result";
 
@@ -785,25 +789,38 @@ export default function Home() {
 
           <div className="agent-card">
             <h3>Termin vorbereiten</h3>
-            <p className="agent-muted">Der Assistent bereitet die Aktion vor. Gebucht wird erst nach Ihrer Bestätigung und nur über einen freigegebenen Connector.</p>
+            <p className="agent-muted">Der Assistent bereitet den Termin vor und führt Sie nach Ihrer Bestätigung zur amtlichen Buchungsseite. Buchen Sie dort selbst – eine automatische Buchung gibt es noch nicht.</p>
             <form className="agent-form agent-form-stack" onSubmit={prepareAppointment}>
               <input value={appointmentService} onChange={(e) => setAppointmentService(e.target.value)} placeholder="z. B. Personalausweis beantragen" required />
               <input value={appointmentLocation} onChange={(e) => setAppointmentLocation(e.target.value)} placeholder="Ort / Behörde (optional)" />
-              <input value={appointmentUrl} onChange={(e) => setAppointmentUrl(e.target.value)} placeholder="Offizielle Buchungs-URL (optional)" />
+              <input value={appointmentUrl} onChange={(e) => setAppointmentUrl(e.target.value)} placeholder="Amtliche Buchungsseite (optional, z. B. https://service.berlin.de/…)" inputMode="url" />
               <button className="button" type="submit" disabled={!appointmentService.trim()}>Vorschau erstellen</button>
             </form>
             {appointmentError && <p className="error" role="alert">{appointmentError}</p>}
             {appointmentAction && (
               <div className="action-preview">
                 <strong>{appointmentAction.summary}</strong>
-                <p>Status: {appointmentAction.status}</p>
+                <p>Status: {STATUS_LABEL[appointmentAction.status] ?? appointmentAction.status}</p>
                 {appointmentAction.status === "prepared" && (
                   <div className="action-buttons">
                     <button className="button" type="button" onClick={() => confirmAppointment(true)}>Bestätigen</button>
                     <button className="link-button" type="button" onClick={() => confirmAppointment(false)}>Abbrechen</button>
                   </div>
                 )}
-                {appointmentAction.status === "approved" && <p>Freigegeben. Ein verbundener Browser-/Behörden-Connector darf den Termin jetzt ausführen.</p>}
+                {appointmentAction.status === "approved" && (
+                  <>
+                    <p>Freigegeben – gebucht ist der Termin aber noch nicht. Öffnen Sie die amtliche Seite und buchen Sie dort selbst.</p>
+                    {appointmentAction.payload?.booking_link && (
+                      <div className="action-buttons">
+                        <a className="button" href={appointmentAction.payload.booking_link} target="_blank" rel="noopener noreferrer">
+                          {appointmentAction.payload.official_booking_url ? "Buchungsseite öffnen" : "Zuständige Stelle im Bundesportal finden"}
+                        </a>
+                      </div>
+                    )}
+                  </>
+                )}
+                {appointmentAction.status === "completed" && <p>Gebucht{appointmentAction.payload?.external_reference ? ` – Referenz ${appointmentAction.payload.external_reference}` : ""}.</p>}
+                {appointmentAction.status === "cancelled" && <p>Abgebrochen.</p>}
               </div>
             )}
           </div>

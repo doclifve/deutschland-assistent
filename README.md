@@ -46,7 +46,7 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
 - Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als Erklärungsschicht hinter der Evidence Engine verwenden – oder mit dem **eigenen API-Schlüssel** (IONOS, STACKIT, Mistral, Claude, OpenAI) direkt in der Weboberfläche.
 - Mit dem LLM **frei chatten und Folgefragen stellen**; bei Behörden- und Rechtsfragen wird weiterhin amtliche Evidenz eingebunden.
-- **Termine als Agentenaktion vorbereiten** und erst nach einer expliziten Nutzerbestätigung an einen freigegebenen Browser-/Behörden-Connector übergeben.
+- **Termine als Agentenaktion vorbereiten:** Nach einer expliziten Bestätigung führt der Assistent zur amtlichen Buchungsseite (nur freigegebene Behörden-Domains) oder zur Suche im Bundesportal. **Gebucht wird nicht automatisch** – das übernimmt die Person selbst oder später ein geprüfter, angeschlossener Connector.
 - **Ausfüllbare PDF-Formulare erkennen und ausfüllen**; Profildaten können per LLM auf vorhandene PDF-Felder abgebildet werden. Das fertige PDF wird erst nach Bestätigung erzeugt.
 
 ### So wird Ihre Frist berechnet
@@ -298,6 +298,7 @@ Dokument hochladen:
 | BYOK_ENABLED | true | Nutzerinnen und Nutzer dürfen einen eigenen API-Schlüssel mitschicken |
 | BYOK_ALLOWED_PROVIDERS | alle außer custom | Komma-Liste erlaubter Anbieter für eigene Schlüssel |
 | BYOK_ALLOW_CUSTOM_BASE_URL | false | eigene Endpunkt-URLs erlauben (nur öffentliches HTTPS; Risiko SSRF) |
+| OFFICIAL_BOOKING_DOMAINS | – | weitere amtliche Domains für Termin-Buchungsseiten (Komma-Liste, z. B. `muenchen.de`); Bund und Länder sind vorbelegt |
 | WHATSAPP_PUBLIC_NUMBER | – | öffentliche WhatsApp-Nummer im E.164-Format |
 | WHATSAPP_GREETING | Hallo | vorausgefüllte Begrüßung im Chat |
 | WHATSAPP_APP_SECRET | – | Prüfung der Meta-Webhook-Signatur; in Produktion erforderlich |
@@ -598,7 +599,7 @@ v0.2.4 ist weiterhin eine frühe Alpha. Insbesondere:
 - Das Evidence-Gating verhindert bereits bestimmte unbelegte Modellbehauptungen, ist aber noch kein vollständiger semantischer Wahrheitsbeweis.
 - `LLM_REGION=DE` ist nur eine technische Konfiguration. Tatsächliche Datenresidenz, Zero-Retention, AVV und Unterauftragsverarbeiter müssen für den konkreten Provider separat geprüft werden.
 - Folgenreiche Bürgeraktionen wie das tatsächliche Einreichen eines Widerspruchs bleiben bewusst außerhalb der aktuellen automatischen Ausführung.
-- Terminaktionen können vorbereitet und freigegeben werden; echte Buchungen benötigen noch konkrete, geprüfte Connectoren für die jeweiligen Behördenportale.
+- Terminaktionen können vorbereitet und freigegeben werden, gebucht wird aber nicht automatisch. Echte Buchungen bräuchten je Portal einen geprüften Connector; viele kommunale Terminsysteme setzen Captchas, Bot-Schutz oder eine BundID-Anmeldung ein und untersagen automatisierte Buchungen.
 - Der PDF-Agent unterstützt derzeit ausfüllbare AcroForm-PDFs. Nicht-interaktive Scanformulare brauchen später eine separate Layout-/Overlay-Pipeline.
 
 Diese Punkte sind Teil der Roadmap und des geplanten öffentlichen Benchmarks.

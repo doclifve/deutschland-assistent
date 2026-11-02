@@ -55,7 +55,7 @@ Dokumente über `POST /v1/documents` hochladen. Die zurückgegebene `document_id
 1. `POST /v1/actions/appointment` – Terminwunsch vorbereiten.
 2. Vorschau dem Nutzer zeigen.
 3. `POST /v1/actions/{action_id}/confirm` mit `approve=true`.
-4. Erst danach den offiziellen Buchungsweg im Browser/Connector öffnen.
+4. Erst danach `payload.booking_link` im Browser öffnen. Der Core akzeptiert dort nur https-Seiten amtlicher Domains; keine anderen Seiten aufrufen, keine Captchas umgehen. Wenn eine Anmeldung (z. B. BundID) oder ein Captcha nötig ist, an den Menschen zurückgeben.
 5. Ergebnis mit `POST /v1/actions/{action_id}/complete` und `X-Agent-Token` zurückmelden.
 
 Der Agent darf niemals eine bloß vorbereitete Aktion als gebucht darstellen.

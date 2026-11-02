@@ -2,15 +2,18 @@
 
 The assistant finds the official service page, a Bundesportal search for the
 person's postal code and a checklist of documents. The person books the
-appointment themselves on the authority's own page.
+appointment themselves on the authority's own page. An automated booking
+connector does not exist yet; a confirmed action only releases the official
+booking link.
 """
 from __future__ import annotations
 
 import json
+import os
 import re
 from functools import lru_cache
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from .schemas import AppointmentPlan, Link
 
@@ -101,3 +104,40 @@ def prepare_appointment(concern_text: str, postal_code: str | None = None) -> Ap
         links=links,
         notes=list(concern.get("notes", [])) + ([] if plz else ["Mit Ihrer Postleitzahl führt der Link direkt zur Stelle an Ihrem Ort."]),
     )
+
+
+# --- Amtliche Buchungsseiten ----------------------------------------------------------------------------------
+# Eine Terminaktion kann einen Link zur Buchungsseite enthalten, den ein angeschlossener Browser-Agent nach der
+# Bestätigung öffnen darf. Damit dieser Agent nie auf Phishing- oder Vermittlerseiten landet, sind nur HTTPS-Adressen
+# amtlicher Domains erlaubt. Kommunale Domains sind sehr verschieden; Betreiber ergänzen sie über
+# OFFICIAL_BOOKING_DOMAINS (Komma-Liste, z. B. "muenchen.de,stadt-koeln.de").
+DEFAULT_OFFICIAL_BOOKING_DOMAINS = (
+    "bund.de",  # u. a. verwaltung.bund.de (Bundesportal)
+    "baden-wuerttemberg.de", "service-bw.de", "bayern.de", "berlin.de", "brandenburg.de", "bremen.de",
+    "hamburg.de", "hessen.de", "mecklenburg-vorpommern.de", "regierung-mv.de", "niedersachsen.de", "nrw.de",
+    "rlp.de", "saarland.de", "sachsen.de", "sachsen-anhalt.de", "schleswig-holstein.de", "thueringen.de",
+)
+
+
+class BookingUrlError(ValueError):
+    pass
+
+
+def official_booking_domains() -> tuple[str, ...]:
+    extra = [d.strip().lower().lstrip(".") for d in os.getenv("OFFICIAL_BOOKING_DOMAINS", "").split(",") if d.strip()]
+    return DEFAULT_OFFICIAL_BOOKING_DOMAINS + tuple(extra)
+
+
+def validate_booking_url(url: str) -> str:
+    """Nur https://-Links auf amtliche Domains (inkl. Subdomains). Gibt die bereinigte URL zurück."""
+    url = url.strip()
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower().rstrip(".")
+    if parts.scheme != "https" or not host or parts.username or parts.password or parts.port not in (None, 443):
+        raise BookingUrlError("Die Buchungsseite muss eine https://-Adresse einer Behörde sein.")
+    if not any(host == d or host.endswith("." + d) for d in official_booking_domains()):
+        raise BookingUrlError(
+            f"„{host}“ ist keine freigegebene amtliche Domain. Lassen Sie das Feld leer – der Assistent zeigt dann "
+            "die Suche im Bundesportal. Betreiber können weitere Domains über OFFICIAL_BOOKING_DOMAINS zulassen."
+        )
+    return url
