@@ -57,7 +57,11 @@
 - [ ] einheitliches Source-Registry-Schema
 - [ ] robustere Relevanzbewertung
 - [ ] breitere Bundesportal-/LeiKa-Abdeckung
-- [ ] weitere amtliche Leistungsquellen
+- [ ] weitere amtliche Leistungsquellen (Bedarfsliste: [QUELLEN_BEDARF.md](QUELLEN_BEDARF.md))
+- [ ] Feiertage je Bundesland in der Fristberechnung (§ 193 BGB, § 31 Abs. 3 VwVfG, § 26 Abs. 3 SGB X)
+- [ ] PLZ → AGS/ARS (Destatis-Gemeindeverzeichnis) als Basis für Zuständigkeit
+- [ ] PVOG-Suchdienst: zuständige Stelle je Wohnort
+- [ ] Kürzel→Slug für alle Bundesgesetze aus gii-toc.xml
 - [ ] erste Civic-Knowledge-Graph-Strukturen
 - [ ] klare Versions- und Gültigkeitsinformationen pro Quelle
 
