@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import logging
 import mimetypes
 import os
@@ -20,6 +21,8 @@ VER = os.getenv("WHATSAPP_GRAPH_VERSION", "v22.0")
 APP_SECRET = os.getenv("WHATSAPP_APP_SECRET", "")
 APP_ENV = os.getenv("APP_ENV", "development")
 MAX_MEDIA_BYTES = int(os.getenv("MAX_WHATSAPP_MEDIA_BYTES", str(15 * 1024 * 1024)))
+# Must exceed the core's LLM timeout (LLM_TIMEOUT_SECONDS, default 60 s) plus evidence lookup.
+ASK_TIMEOUT_SECONDS = float(os.getenv("WHATSAPP_ASK_TIMEOUT_SECONDS", "120"))
 RECENT_IDS = deque(maxlen=2000)
 RECENT_SET: set[str] = set()
 
@@ -175,7 +178,7 @@ async def process_message(message: dict) -> None:
             await send(sender, WELCOME)
             return
         if text:
-            async with httpx.AsyncClient(timeout=40) as c:
+            async with httpx.AsyncClient(timeout=ASK_TIMEOUT_SECONDS) as c:
                 r = await c.post(CORE + "/v1/ask", json={"message": text, "language": "de"})
                 r.raise_for_status()
                 answer = r.json()
@@ -190,15 +193,32 @@ async def process_message(message: dict) -> None:
         await send(sender, "Das Dokument konnte gerade nicht verarbeitet werden. Bitte versuchen Sie es erneut oder senden Sie eine PDF-/Foto-Datei.")
 
 
+def extract_messages(payload: object) -> list[dict]:
+    """Collect messages from every entry/change: Meta may batch several in one webhook call."""
+    messages: list[dict] = []
+    if not isinstance(payload, dict):
+        return messages
+    for entry in payload.get("entry") or []:
+        if not isinstance(entry, dict):
+            continue
+        for change in entry.get("changes") or []:
+            value = change.get("value") if isinstance(change, dict) else None
+            if isinstance(value, dict):
+                messages.extend(m for m in value.get("messages") or [] if isinstance(m, dict))
+    return messages
+
+
 @app.post("/webhook")
 async def receive(req: Request, background_tasks: BackgroundTasks):
     raw = await req.body()
     if not signature_valid(raw, req.headers.get("X-Hub-Signature-256")):
         raise HTTPException(401, "Invalid signature")
-    payload = await req.json()
     try:
-        messages = payload["entry"][0]["changes"][0]["value"].get("messages", [])
-    except (KeyError, IndexError, TypeError):
+        payload = json.loads(raw)
+    except ValueError:
+        raise HTTPException(400, "Invalid JSON") from None
+    messages = extract_messages(payload)
+    if not messages:
         return {"ok": True, "ignored": True}
     accepted = 0
     for message in messages:

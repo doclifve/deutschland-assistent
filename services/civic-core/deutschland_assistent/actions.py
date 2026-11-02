@@ -4,7 +4,7 @@ import io
 import threading
 import time
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from pypdf import PdfReader, PdfWriter
 
@@ -54,11 +54,23 @@ class ActionStore:
             self._purge()
             return self._actions.get(action_id)
 
-    def update_action(self, action_id: str, preview: ActionPreview, artifact: bytes | None = None, artifact_name: str | None = None):
+    def update_action(
+        self,
+        action_id: str,
+        preview: ActionPreview,
+        artifact: bytes | None = None,
+        artifact_name: str | None = None,
+        *,
+        expected_version: int | None = None,
+    ) -> bool:
+        """Replace an action. With ``expected_version`` this is an atomic compare-and-swap,
+        so two concurrent confirmations cannot both succeed."""
         with self._lock:
             self._purge()
             current = self._actions.get(action_id)
             if not current:
+                return False
+            if expected_version is not None and current.preview.version != expected_version:
                 return False
             self._actions[action_id] = StoredAction(
                 current.created,

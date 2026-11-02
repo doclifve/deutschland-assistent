@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import uuid
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Header, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -112,6 +113,19 @@ engine = EvidenceEngine()
 model_provider = build_model_provider()
 ACTION_STORE = ActionStore(ttl_seconds=ACTION_TTL_SECONDS)
 FORMS = FormStore(DOCUMENT_TTL_SECONDS, MAX_STORED_DOCUMENTS)
+
+
+def attachment_headers(filename: str, fallback: str = "dokument.pdf") -> dict[str, str]:
+    """Build a Content-Disposition header that is safe for any user-supplied filename.
+
+    HTTP headers must be latin-1; non-ASCII names would otherwise crash the response (HTTP 500).
+    An ASCII fallback is sent in ``filename`` and the full name RFC 5987-encoded in ``filename*``.
+    """
+    name = filename.strip() or fallback
+    ascii_name = "".join(ch if ch.isascii() and (ch.isalnum() or ch in "-_.") else "_" for ch in name)
+    if not ascii_name.strip("_."):
+        ascii_name = fallback
+    return {"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name, safe='')}"}
 
 
 def primary_deadline(deadlines: list[Deadline], relative: list[RelativeDeadline]) -> Deadline | None:
@@ -366,11 +380,10 @@ async def forms_fill_legacy(form_id: str, req: FormFillRequest):
     except FormError as exc:
         raise HTTPException(422, str(exc)) from exc
     name = (info.filename.rsplit(".", 1)[0] or "formular") + "-ausgefuellt.pdf"
-    safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in name)
     return Response(
         content=pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{safe}"'},
+        headers=attachment_headers(name, "formular-ausgefuellt.pdf"),
     )
 
 
@@ -407,7 +420,7 @@ async def inspect_form(file: UploadFile = File(...)):
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(415, "Der Formular-Agent unterstützt derzeit ausfüllbare PDF-Formulare.")
     try:
-        inspection = inspect_pdf_form(data, filename, ACTION_TTL_SECONDS, ACTION_STORE)
+        inspection = await run_in_threadpool(inspect_pdf_form, data, filename, ACTION_TTL_SECONDS, ACTION_STORE)
     except Exception as exc:
         raise HTTPException(422, f"PDF-Formular konnte nicht gelesen werden: {type(exc).__name__}") from exc
     if not inspection.fields:
@@ -489,7 +502,8 @@ def confirm_action(action_id: str, req: ActionConfirmRequest):
         updated = current.model_copy(
             update={"status": "cancelled", "version": current.version + 1}
         )
-        ACTION_STORE.update_action(action_id, updated)
+        if not ACTION_STORE.update_action(action_id, updated, expected_version=current.version):
+            raise HTTPException(409, "Die Aktion wurde zwischenzeitlich geändert.")
         return updated
 
     artifact = None
@@ -518,7 +532,10 @@ def confirm_action(action_id: str, req: ActionConfirmRequest):
             "artifact_url": artifact_url,
         }
     )
-    ACTION_STORE.update_action(action_id, updated, artifact=artifact, artifact_name=artifact_name)
+    if not ACTION_STORE.update_action(
+        action_id, updated, artifact=artifact, artifact_name=artifact_name, expected_version=current.version
+    ):
+        raise HTTPException(409, "Die Aktion wurde zwischenzeitlich geändert.")
     return updated
 
 
@@ -527,11 +544,10 @@ def action_artifact(action_id: str):
     stored = ACTION_STORE.get_action(action_id)
     if not stored or not stored.artifact:
         raise HTTPException(404, "Kein Artefakt für diese Aktion vorhanden.")
-    filename = stored.artifact_name or "dokument.pdf"
     return Response(
         content=stored.artifact,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers=attachment_headers(stored.artifact_name or "dokument.pdf"),
     )
 
 
@@ -564,7 +580,8 @@ def complete_external_action(
             "payload": payload,
         }
     )
-    ACTION_STORE.update_action(action_id, updated)
+    if not ACTION_STORE.update_action(action_id, updated, expected_version=current.version):
+        raise HTTPException(409, "Die Aktion wurde zwischenzeitlich geändert.")
     return updated
 
 

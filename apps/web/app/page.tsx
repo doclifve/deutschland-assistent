@@ -75,6 +75,8 @@ export default function Home() {
   const [formInspection, setFormInspection] = useState<any>(null);
   const [formProfile, setFormProfile] = useState("");
   const [formAction, setFormAction] = useState<any>(null);
+  const [appointmentError, setAppointmentError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Public channel details come from the API; the section only shows when a number is configured.
   useEffect(() => {
@@ -101,15 +103,38 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, language: "de", document_id: documentId }),
     });
-    if (!r.ok) throw new Error(r.status === 404 ? "Das Dokument ist abgelaufen. Bitte erneut hochladen." : await r.text());
+    if (!r.ok) throw r.status === 404 ? new Error("Das Dokument ist abgelaufen. Bitte erneut hochladen.") : await apiError(r);
     return r.json();
   }
 
-  function fail(e: unknown) {
-    const msg = e instanceof TypeError
+  // FastAPI returns {"detail": "..."}; show that text instead of raw JSON.
+  async function apiError(r: Response): Promise<Error> {
+    const raw = await r.text();
+    try {
+      const detail = JSON.parse(raw)?.detail;
+      if (typeof detail === "string") return new Error(detail);
+    } catch {}
+    return new Error(raw || `Fehler ${r.status}`);
+  }
+
+  function errorText(e: unknown) {
+    return e instanceof TypeError
       ? `Keine Verbindung zum Backend unter ${API}. Läuft es?`
       : String(e instanceof Error ? e.message : e);
-    setError(msg);
+  }
+
+  // Agent actions run from click handlers; never let a rejection go unnoticed.
+  async function guarded(setErr: (m: string | null) => void, fn: () => Promise<void>) {
+    setErr(null);
+    try {
+      await fn();
+    } catch (e) {
+      setErr(errorText(e));
+    }
+  }
+
+  function fail(e: unknown) {
+    setError(errorText(e));
     setView("home");
     window.scrollTo({ top: 0 });
   }
@@ -122,7 +147,7 @@ export default function Home() {
       const f = new FormData();
       f.append("file", file);
       const r = await fetch(API + "/v1/documents", { method: "POST", body: f });
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) throw await apiError(r);
       const d = await r.json();
       setDoc(d);
       setQuestion(null);
@@ -170,50 +195,61 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next, language: "de" }),
       });
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) throw await apiError(r);
       const data = await r.json();
       setChatMessages([...next, { role: "assistant", content: data.message }]);
     } catch (e) {
-      setChatMessages([...next, { role: "assistant", content: String(e instanceof Error ? e.message : e) }]);
+      setChatMessages([...next, { role: "assistant", content: errorText(e) }]);
     } finally {
       setChatBusy(false);
     }
   }
 
-  async function prepareAppointment(e: FormEvent) {
+  function prepareAppointment(e: FormEvent) {
     e.preventDefault();
-    const r = await fetch(API + "/v1/actions/appointment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        service: appointmentService,
-        location: appointmentLocation || null,
-        official_booking_url: appointmentUrl || null,
-      }),
+    return guarded(setAppointmentError, async () => {
+      const r = await fetch(API + "/v1/actions/appointment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service: appointmentService,
+          location: appointmentLocation || null,
+          official_booking_url: appointmentUrl || null,
+        }),
+      });
+      if (!r.ok) throw await apiError(r);
+      setAppointmentAction(await r.json());
     });
-    if (!r.ok) throw new Error(await r.text());
-    setAppointmentAction(await r.json());
   }
 
-  async function confirmAppointment(approve: boolean) {
+  function confirmAppointment(approve: boolean) {
     if (!appointmentAction) return;
-    const r = await fetch(API + `/v1/actions/${appointmentAction.action_id}/confirm`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve, expected_version: appointmentAction.version }),
+    return guarded(setAppointmentError, async () => {
+      const r = await fetch(API + `/v1/actions/${appointmentAction.action_id}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approve, expected_version: appointmentAction.version }),
+      });
+      if (!r.ok) throw await apiError(r);
+      setAppointmentAction(await r.json());
     });
-    if (!r.ok) throw new Error(await r.text());
-    setAppointmentAction(await r.json());
   }
 
-  async function inspectAgentForm(file?: File) {
+  function inspectAgentForm(file?: File) {
     if (!file) return;
-    const fd = new FormData();
-    fd.append("file", file);
-    const r = await fetch(API + "/v1/forms/inspect", { method: "POST", body: fd });
-    if (!r.ok) throw new Error(await r.text());
-    setFormInspection(await r.json());
-    setFormAction(null);
+    return guarded(setFormError, async () => {
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const r = await fetch(API + "/v1/forms/inspect", { method: "POST", body: fd });
+        if (!r.ok) throw await apiError(r);
+        setFormInspection(await r.json());
+        setFormAction(null);
+      } finally {
+        // allow re-selecting the same file after an error
+        if (formAgentInput.current) formAgentInput.current.value = "";
+      }
+    });
   }
 
   function profileFromText(text: string) {
@@ -229,27 +265,31 @@ export default function Home() {
     return profile;
   }
 
-  async function prepareAgentForm() {
+  function prepareAgentForm() {
     if (!formInspection) return;
-    const profile = profileFromText(formProfile);
-    const r = await fetch(API + `/v1/forms/${formInspection.form_id}/agent-prepare`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profile }),
+    return guarded(setFormError, async () => {
+      const profile = profileFromText(formProfile);
+      const r = await fetch(API + `/v1/forms/${formInspection.form_id}/agent-prepare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile }),
+      });
+      if (!r.ok) throw await apiError(r);
+      setFormAction(await r.json());
     });
-    if (!r.ok) throw new Error(await r.text());
-    setFormAction(await r.json());
   }
 
-  async function confirmAgentForm() {
+  function confirmAgentForm() {
     if (!formAction) return;
-    const r = await fetch(API + `/v1/actions/${formAction.action_id}/confirm`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve: true, expected_version: formAction.version }),
+    return guarded(setFormError, async () => {
+      const r = await fetch(API + `/v1/actions/${formAction.action_id}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approve: true, expected_version: formAction.version }),
+      });
+      if (!r.ok) throw await apiError(r);
+      setFormAction(await r.json());
     });
-    if (!r.ok) throw new Error(await r.text());
-    setFormAction(await r.json());
   }
 
   function reset() {
@@ -571,6 +611,7 @@ export default function Home() {
               <input value={appointmentUrl} onChange={(e) => setAppointmentUrl(e.target.value)} placeholder="Offizielle Buchungs-URL (optional)" />
               <button className="button" type="submit" disabled={!appointmentService.trim()}>Vorschau erstellen</button>
             </form>
+            {appointmentError && <p className="error" role="alert">{appointmentError}</p>}
             {appointmentAction && (
               <div className="action-preview">
                 <strong>{appointmentAction.summary}</strong>
@@ -591,6 +632,7 @@ export default function Home() {
             <p className="agent-muted">Ausfüllbares PDF hochladen. Der Formular-Agent ordnet Ihre Angaben den vorhandenen Feldern zu. Das PDF wird erst nach Bestätigung erzeugt.</p>
             <input ref={formAgentInput} className="visually-hidden" type="file" accept=".pdf,application/pdf" onChange={(e) => inspectAgentForm(e.target.files?.[0])} />
             <button className="button" type="button" onClick={() => formAgentInput.current?.click()}>Formular auswählen</button>
+            {formError && <p className="error" role="alert">{formError}</p>}
             {formInspection && (
               <div className="form-agent">
                 <p>{formInspection.fields.length} ausfüllbare Felder erkannt.</p>
