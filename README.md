@@ -210,9 +210,16 @@ Danach:
 - API-Dokumentation: http://localhost:8000/docs
 - Healthcheck: http://localhost:8000/health
 
-### Variante B – ohne Docker
+### Variante B – ohne Docker, mit `make` (empfohlen für Entwicklung)
 
-Benötigt Python 3.11+ und Node.js 20+.
+Benötigt Python 3.11+ und Node.js 20.9+.
+
+    make setup   # .env anlegen, Python-venv + npm ci
+    make dev     # API :8000 und Web :3000 mit Auto-Reload
+
+`make help` listet alle Befehle (u. a. `make check` = Lint, Tests und Web-Build wie in der CI).
+
+### Variante C – ohne Docker, manuell
 
 Backend:
 
@@ -225,7 +232,7 @@ Backend:
 Weboberfläche:
 
     cd apps/web
-    npm install
+    npm ci
     npm run dev
 
 Docling/OCR lokal installieren:
@@ -520,7 +527,10 @@ Siehe [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entwicklung und Tests
 
-    make test
+    make check   # Ruff, pytest (Civic Core + WhatsApp-Adapter), Next.js-Build
+    make test    # nur Python-Tests
+
+Für Claude Code liegen projektspezifische Skills unter `.claude/skills/` (Stack starten, Qualität prüfen, Quellen, Extraktion, API-Endpunkte, Agentenaktionen); Projektkontext steht in `CLAUDE.md`.
 
 Neue Funktionen mit potenziell großen Folgen für Bürgerinnen und Bürger sollten nicht nur neue Features, sondern auch passende Tests und Evaluationen mitbringen.
 
