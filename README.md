@@ -423,6 +423,12 @@ Die API befindet sich weiterhin in der Testphase. Deshalb bleibt **Gesetze im In
 
 Der Assistent funktioniert ohne Sprachmodell. Chat, Erklärungen und Formular-Agent werden erst mit einem Modell freigeschaltet, und dafür reicht ein **eigener API-Schlüssel**. Es gibt zwei Wege:
 
+<p align="center">
+  <img src="docs/media/eigener-schluessel-v1.gif" alt="Erklärfilm: In der Weboberfläche wird IONOS als Anbieter gewählt, ein Schlüssel eingefügt und die Verbindung erfolgreich getestet. Ein Schaubild zeigt, wie der Schlüssel nur für eine Anfrage vom Browser über den Deutschland Assistenten zum Anbieter reist und die Antwort zurückkommt; ein Dokument-Upload geht ohne Schlüssel. Häkchen: nicht gespeichert, nicht protokolliert. Zum Schluss beantwortet der Chat eine Frage zum Kindergeld mit amtlicher Quelle." width="860" />
+  <br />
+  <sub>Erklärfilm in 28 Sekunden · <a href="docs/media/eigener-schluessel-v1.mp4">als MP4 in voller Auflösung</a></sub>
+</p>
+
 **1. In der Weboberfläche (jede Person mit eigenem Konto):** Abschnitt „Ihr eigener KI-Schlüssel“ → Anbieter wählen, Schlüssel einfügen, „Verbindung testen“. Der Schlüssel bleibt im Browser (standardmäßig nur bis zum Schließen des Tabs, optional „auf diesem Gerät merken“) und wird nur bei Anfragen an ein Sprachmodell mitgeschickt. Der Server speichert und protokolliert ihn nicht.
 
 **2. Für den ganzen Server (Betreiber):** in `.env` einen Anbieter eintragen, zum Beispiel
