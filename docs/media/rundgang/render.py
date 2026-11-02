@@ -1,6 +1,6 @@
 """Render the keynote-style films (docs/media/<NAME>.mp4 and .gif).
 
-Films: ``rundgang`` (Produkt-Rundgang, Standard) and ``fristberechnung`` (Erklärfilm zur Fristberechnung).
+Films: ``rundgang`` (Produkt-Rundgang, Standard), ``fristberechnung`` und ``eigener-schluessel`` (Erklärfilme).
 
 The film is driven frame by frame through window.render(t), so motion is exact
 regardless of machine speed. It reuses the web app's stylesheet, so re-run this
@@ -10,6 +10,7 @@ Requirements: Python with `playwright` (plus `playwright install chromium`) and 
 
     python docs/media/rundgang/render.py                  # Rundgang
     python docs/media/rundgang/render.py fristberechnung  # Erklärfilm Fristberechnung
+    python docs/media/rundgang/render.py eigener-schluessel  # Erklärfilm eigener API-Schlüssel
 """
 from __future__ import annotations
 
@@ -27,7 +28,7 @@ OUT = Path(__file__).resolve().parent.parent
 FPS = 30
 # Bump the version whenever a film changes: GitHub and browsers cache images by
 # file name, so a re-render under the same name keeps showing the old animation.
-FILMS = {"rundgang": "rundgang-v2", "fristberechnung": "fristberechnung-v1"}
+FILMS = {"rundgang": "rundgang-v2", "fristberechnung": "fristberechnung-v1", "eigener-schluessel": "eigener-schluessel-v1"}
 FILM = sys.argv[1] if len(sys.argv) > 1 else "rundgang"
 if FILM not in FILMS:
     raise SystemExit(f"Unbekannter Film {FILM!r}. Verfügbar: {', '.join(FILMS)}")
