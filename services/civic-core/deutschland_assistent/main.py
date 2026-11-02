@@ -6,7 +6,7 @@ import time
 import uuid
 from urllib.parse import quote
 
-from fastapi import FastAPI, File, Header, HTTPException, Response, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
@@ -19,6 +19,7 @@ from .documents import DocumentParseError, parse_document
 from .forms import FormError, FormStore, SuggestContext, fill_form, read_form, suggest_by_label, suggest_by_model
 from .letters import draft_letter, extract_reference
 from .evidence import EvidenceEngine
+from .feiertage import STATES
 from .answer_generation import generate_grounded_explanation
 from .model_provider import ModelProviderError, build_model_provider
 from .extraction import (
@@ -201,7 +202,11 @@ def sources():
 
 
 @app.post("/v1/documents", response_model=DocumentAnalysis)
-async def documents(file: UploadFile = File(...)):
+async def documents(file: UploadFile = File(...), bundesland: str | None = Form(None)):
+    """``bundesland`` (z. B. "BY") ist optional und dient nur der Feiertagsberechnung bei Fristen."""
+    state = (bundesland or "").strip().upper() or None
+    if state and state not in STATES:
+        raise HTTPException(422, f"Unbekanntes Bundesland: {bundesland}. Erlaubt: {', '.join(STATES)}.")
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if not data:
         raise HTTPException(400, "Leere Datei.")
@@ -224,7 +229,7 @@ async def documents(file: UploadFile = File(...)):
     text = parsed.text
     doc_id = "doc_" + uuid.uuid4().hex[:16]
     doc_date = extract_document_date(text)
-    relative = extract_relative_deadlines(text, doc_date)
+    relative = extract_relative_deadlines(text, doc_date, state)
     requirements = extract_requirements(text)
     appeal = extract_appeal_instruction(text)
     rel_warn = ["Frist ist relativ formuliert, aber das Datum des Schreibens wurde nicht erkannt."] if relative and not doc_date else []
@@ -597,7 +602,7 @@ async def ask(req: AskRequest):
 
     refs = analysis.legal_references if analysis else extract_legal_references(text)
     deadlines = analysis.deadlines if analysis else extract_deadlines(text)
-    relative = analysis.relative_deadlines if analysis else extract_relative_deadlines(text)
+    relative = analysis.relative_deadlines if analysis else extract_relative_deadlines(text, None, req.bundesland)
     leika = analysis.leika_ids if analysis else extract_leika_ids(text)
     requirements = analysis.requirements if analysis else extract_requirements(text)
     appeal = analysis.appeal_instruction if analysis else extract_appeal_instruction(text)

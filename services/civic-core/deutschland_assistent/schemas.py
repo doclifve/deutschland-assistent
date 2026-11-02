@@ -33,6 +33,7 @@ class RelativeDeadline(BaseModel):
     document_date: date | None = None
     assumed_trigger_date: date | None = None
     estimated_end: date | None = None
+    bundesland: str | None = None
     basis: list[str] = Field(default_factory=list)
     confidence: Confidence = "low"
 
@@ -103,10 +104,14 @@ class EvidenceBundle(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+Bundesland = Literal["BW", "BY", "BE", "BB", "HB", "HH", "HE", "MV", "NI", "NW", "RP", "SL", "SN", "ST", "SH", "TH"]
+
+
 class AskRequest(BaseModel):
     message: str = Field(min_length=1, max_length=12000)
     language: str = "de"
     document_id: str | None = None
+    bundesland: Bundesland | None = None
 
 
 class EvidenceSearchRequest(BaseModel):

@@ -2,6 +2,12 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+const BUNDESLAENDER: Record<string, string> = {
+  BW: "Baden-Württemberg", BY: "Bayern", BE: "Berlin", BB: "Brandenburg", HB: "Bremen", HH: "Hamburg",
+  HE: "Hessen", MV: "Mecklenburg-Vorpommern", NI: "Niedersachsen", NW: "Nordrhein-Westfalen",
+  RP: "Rheinland-Pfalz", SL: "Saarland", SN: "Sachsen", ST: "Sachsen-Anhalt", SH: "Schleswig-Holstein", TH: "Thüringen",
+};
+
 const API = process.env.NEXT_PUBLIC_CIVIC_API_URL || "http://localhost:8000";
 
 type View = "home" | "loading" | "result";
@@ -61,6 +67,21 @@ export default function Home() {
   const [question, setQuestion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Bundesland der Behörde: nur für Feiertage bei der Fristberechnung, bleibt im Browser gespeichert.
+  const [bundesland, setBundesland] = useState("");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("bundesland");
+      if (saved && saved in BUNDESLAENDER) setBundesland(saved);
+    } catch {}
+  }, []);
+  function chooseBundesland(value: string) {
+    setBundesland(value);
+    try {
+      if (value) window.localStorage.setItem("bundesland", value);
+      else window.localStorage.removeItem("bundesland");
+    } catch {}
+  }
   const howRef = useRef<HTMLElement>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppChannel | null>(null);
   const [qr, setQr] = useState<string | null>(null);
@@ -101,7 +122,7 @@ export default function Home() {
     const r = await fetch(API + "/v1/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, language: "de", document_id: documentId }),
+      body: JSON.stringify({ message, language: "de", document_id: documentId, bundesland: bundesland || undefined }),
     });
     if (!r.ok) throw r.status === 404 ? new Error("Das Dokument ist abgelaufen. Bitte erneut hochladen.") : await apiError(r);
     return r.json();
@@ -146,6 +167,7 @@ export default function Home() {
     try {
       const f = new FormData();
       f.append("file", file);
+      if (bundesland) f.append("bundesland", bundesland);
       const r = await fetch(API + "/v1/documents", { method: "POST", body: f });
       if (!r.ok) throw await apiError(r);
       const d = await r.json();
@@ -475,6 +497,15 @@ export default function Home() {
           <button type="button" className="button button-wide" onClick={() => fileInput.current?.click()}>
             Brief fotografieren
           </button>
+          <label className="state-select">
+            <span>Bundesland der Behörde (für Feiertage bei Fristen)</span>
+            <select value={bundesland} onChange={(e) => chooseBundesland(e.target.value)}>
+              <option value="">Nicht angegeben – nur bundesweite Feiertage</option>
+              {Object.entries(BUNDESLAENDER).map(([code, name]) => (
+                <option key={code} value={code}>{name}</option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             className="link-button"

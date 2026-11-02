@@ -289,3 +289,6 @@ h1, h2, h3, p { margin: 0; }
 @media (min-width: 900px) {
   .agent-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+.state-select { display: flex; flex-direction: column; gap: 6px; width: 100%; font-size: 14px; color: var(--muted); text-align: left; }
+.state-select select { font: inherit; font-size: 16px; color: inherit; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(0, 0, 0, 0.12); background: #fff; width: 100%; }

@@ -21,7 +21,7 @@ Eintrag im täglichen Smoke-Test).
 | Leistungen | **9** kuratierte Einträge in `services.de.json`, LeiKa-ID → Bundesportal-Link |
 | Termine | **5** Anliegen in `appointments.de.json`, Bundesportal-Suche mit PLZ |
 | Zuständigkeit/Adressen | keine |
-| Feiertage | keine (Fristen verschieben sich nur über Wochenenden) |
+| Feiertage | ✅ bundesweit und je Land (Fristverschiebung nach § 193 BGB u. a.) |
 | Landes- und EU-Recht | keine |
 | Formulare | nur vom Nutzer hochgeladene PDFs |
 
@@ -30,6 +30,8 @@ Eintrag im täglichen Smoke-Test).
 ## P0 – Kernfunktion „Behördenbrief verstehen“ ist ohne diese Quellen fehlerhaft oder lückenhaft
 
 ### 1. Gesetzliche Feiertage je Bundesland (Fristberechnung)
+> ✅ **Umgesetzt** in `deutschland_assistent/feiertage.py`: eigene Berechnung nach den Landesfeiertagsgesetzen, gegengeprüft mit dem Paket `holidays` (16 Länder, 2018–2035, keine Abweichung). Das Bundesland ist optional (`bundesland` bei `/v1/documents` und `/v1/ask`, Auswahl in der Weboberfläche). Noch offen: das Bundesland automatisch aus der Behördenadresse ableiten (braucht Nr. 2).
+
 - **Problem:** `extraction.next_weekday` verschiebt ein Fristende nur über Samstag und Sonntag. Nach § 193 BGB,
   § 31 Abs. 3 VwVfG, § 26 Abs. 3 SGB X, § 108 Abs. 3 AO und § 222 Abs. 2 ZPO verschiebt sich das Ende auch über
   **gesetzliche Feiertage am Ort**. Heute nennen wir dann ein zu frühes Fristende. Das ist auf der sicheren Seite, aber falsch.
