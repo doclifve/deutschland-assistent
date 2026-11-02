@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Deutschland Assistent – So wird die Frist berechnet</title>
+<!--
+  Erklärfilm: Wie der Assistent ein Fristende berechnet.
+  Beispiel = getesteter Fall aus services/civic-core/tests/test_feiertage.py
+  (Brief 13.10.2025, „binnen 2 Wochen nach Zugang“, Niedersachsen → Mo., 03.11.2025).
+  Bild für Bild über window.render(t) gesteuert; Render: python docs/media/rundgang/render.py fristberechnung
+-->
+<style>
+:root { --ink: #1D1D1F; --muted: #636366; --quiet: #8E8E93; --grey: #F5F5F7; --line: #E5E5EA; --red: #DD0000; --gold: #FFCC00; }
+html, body { margin: 0; background: #FFFFFF; }
+body { width: 1920px; height: 1080px; overflow: hidden; position: relative; color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Inter", "Noto Sans", sans-serif; }
+.abs { position: absolute; }
+
+/* Titel */
+#title { left: 0; right: 0; top: 300px; text-align: center; }
+#title h1 { margin: 56px 0 0; font-size: 104px; letter-spacing: -0.04em; line-height: 1; }
+#title p { margin: 28px 0 0; font-size: 38px; color: var(--muted); letter-spacing: -0.01em; }
+.cluster { position: relative; width: 150px; height: 130px; margin: 0 auto; }
+.cluster span { position: absolute; width: 80px; height: 80px; border-radius: 50%; }
+
+/* Bildunterschriften rechts */
+.caption { left: 1160px; width: 680px; top: 330px; }
+.caption .step { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%;
+  background: var(--ink); color: #fff; font-size: 32px; font-weight: 700; }
+.caption .step.gold { background: var(--gold); color: var(--ink); }
+.caption h2 { margin: 28px 0 0; font-size: 68px; line-height: 1.05; font-weight: 700; letter-spacing: -0.035em; }
+.caption p { margin: 24px 0 0; font-size: 30px; line-height: 1.38; color: var(--muted); letter-spacing: -0.01em; }
+
+/* Brief */
+#letter { left: 230px; top: 170px; width: 640px; height: 760px; background: #fff; border-radius: 14px; box-sizing: border-box;
+  box-shadow: 0 40px 90px rgba(0,0,0,.16); padding: 54px 56px; font-size: 25px; line-height: 1.55; }
+#letter .from { font-weight: 700; font-size: 27px; }
+#letter .meta { margin-top: 8px; color: var(--muted); }
+#letter .subject { margin-top: 44px; font-weight: 700; }
+#letter .ln { height: 13px; border-radius: 7px; background: var(--line); margin-top: 18px; }
+#letter .rb { margin-top: 40px; font-size: 22px; color: var(--muted); font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+#letter .body { margin-top: 10px; }
+.mark { position: relative; white-space: nowrap; }
+.mark i { position: absolute; left: -4px; right: -4px; top: 8%; bottom: 4%; background: var(--gold); border-radius: 6px; z-index: -1; transform-origin: left center; }
+.mark, .mark b { position: relative; z-index: 1; }
+
+/* Kalender */
+#cal { left: 110px; top: 230px; }
+#cal .head { display: grid; grid-template-columns: repeat(7, 128px); gap: 12px; font-size: 22px; color: var(--quiet); font-weight: 600; text-align: center; margin-bottom: 12px; }
+#cal .grid { display: grid; grid-template-columns: repeat(7, 128px); grid-auto-rows: 112px; gap: 12px; }
+.cell { position: relative; border-radius: 22px; background: var(--grey); box-sizing: border-box; padding: 12px 0 0 16px; overflow: hidden; }
+.cell .bg { position: absolute; inset: 0; border-radius: 22px; }
+.cell .n { position: relative; font-size: 38px; font-weight: 700; letter-spacing: -0.02em; }
+.cell .mo { position: relative; font-size: 17px; color: var(--quiet); font-weight: 600; margin-left: 4px; }
+.cell.we .n { color: var(--quiet); }
+.cell .strike { position: absolute; left: 12px; width: 56px; top: 36px; height: 5px; background: var(--red); border-radius: 3px; transform-origin: left center; transform: scaleX(0); }
+.cell .lab { position: absolute; left: 8px; right: 8px; bottom: 10px; padding: 5px 0; border-radius: 10px; font-size: 16px; font-weight: 700; text-align: center; white-space: nowrap; opacity: 0; }
+.lab.dark { background: var(--ink); color: #fff; } .lab.red { background: var(--red); color: #fff; } .lab.gold { background: var(--gold); color: var(--ink); } .lab.grey { background: #fff; color: var(--muted); } .lab.inv { background: var(--gold); color: var(--ink); }
+.cell .ring { position: absolute; inset: 0; border-radius: 22px; border: 5px solid var(--ink); opacity: 0; }
+#chip { left: 110px; top: 150px; display: flex; align-items: center; gap: 14px; padding: 14px 26px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 26px; font-weight: 600; }
+#chip small { color: #C7C7CC; font-weight: 500; font-size: 22px; }
+.tag { position: absolute; padding: 8px 16px; border-radius: 12px; font-size: 21px; font-weight: 700; white-space: nowrap; box-shadow: 0 10px 24px rgba(0,0,0,.12); }
+.tag.dark { background: var(--ink); color: #fff; }
+.tag.red { background: var(--red); color: #fff; }
+.tag.gold { background: var(--gold); color: var(--ink); }
+.tag.grey { background: #fff; color: var(--muted); }
+#dot { width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--red); box-shadow: 0 6px 16px rgba(221,0,0,.35); }
+#counter { left: 110px; top: 800px; font-size: 30px; font-weight: 700; color: var(--ink); }
+#counter span { color: var(--muted); font-weight: 500; }
+#bayern { left: 110px; top: 852px; font-size: 24px; color: var(--muted); }
+#note { left: 110px; top: 800px; font-size: 30px; font-weight: 700; }
+#note span { color: var(--red); }
+
+/* Ergebniskarte (wie in der App) */
+#result { left: 170px; top: 210px; width: 780px; background: #fff; border-radius: 36px; box-shadow: 0 40px 90px rgba(0,0,0,.14); padding: 44px 48px; box-sizing: border-box; }
+#result .row { display: flex; justify-content: space-between; align-items: center; }
+#result .lbl { font-size: 26px; color: var(--muted); font-weight: 600; }
+#result .badge { background: #FFF1B8; color: #6B4E00; font-size: 22px; font-weight: 700; padding: 8px 18px; border-radius: 999px; }
+#result .big { margin-top: 18px; font-size: 104px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; }
+#result .sub { margin-top: 18px; font-size: 24px; color: var(--muted); line-height: 1.4; }
+#result .how { margin-top: 30px; padding-top: 26px; border-top: 1px solid var(--line); font-size: 23px; line-height: 1.45; }
+#result .how div { display: flex; gap: 14px; margin-top: 14px; }
+#result .how b { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; }
+#result .how b.gold { background: var(--gold); color: var(--ink); }
+</style>
+</head>
+<body>
+
+<div id="title" class="abs">
+  <div class="cluster">
+    <span id="c1" style="left:35px;top:0;background:#000"></span>
+    <span id="c2" style="left:0;top:50px;background:var(--red);opacity:.88"></span>
+    <span id="c3" style="left:70px;top:50px;background:var(--gold);opacity:.88"></span>
+  </div>
+  <h1>Wie lange habe ich Zeit?</h1>
+  <p>So berechnet der Deutschland Assistent Ihre Frist.</p>
+</div>
+
+<!-- Brief -->
+<div id="letter" class="abs">
+  <div class="from">Landkreis Hildesheim</div>
+  <div class="meta">Sozialamt · Aktenzeichen 50.2-123</div>
+  <div class="meta">Datum: <span class="mark" id="m1"><i></i><b>13.10.2025</b></span></div>
+  <div class="subject">Bescheid über Ihren Antrag</div>
+  <div class="ln" style="width:94%"></div><div class="ln" style="width:88%"></div><div class="ln" style="width:72%"></div>
+  <div class="rb">Rechtsbehelfsbelehrung</div>
+  <div class="body">Gegen diesen Bescheid kann <span class="mark" id="m2"><i></i><b>binnen 2 Wochen nach Zugang</b></span> Widerspruch erhoben werden.</div>
+  <div class="ln" style="width:80%;margin-top:30px"></div><div class="ln" style="width:60%"></div>
+</div>
+
+<!-- Kalender: Mo 13.10. bis So 09.11.2025 -->
+<div id="chip" class="abs">Bundesland der Behörde: Niedersachsen <small>▾</small></div>
+<div id="cal" class="abs">
+  <div class="head"><div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div></div>
+  <div class="grid" id="grid"></div>
+</div>
+<div id="counter" class="abs"></div>
+<div id="note" class="abs">Fr., 31.10.: <span>Reformationstag</span> in Niedersachsen → Sa., So. → Mo., 3.11.</div>
+<div id="bayern" class="abs">Zum Vergleich: In Bayern ist der 31.10. kein Feiertag – dort bliebe es beim Fr., 31.10.</div>
+<div id="dot" class="abs"></div>
+
+<!-- Ergebnis -->
+<div id="result" class="abs">
+  <div class="row"><span class="lbl">Frist</span><span class="badge">Geschätzt</span></div>
+  <div class="big">Mo., 3. Nov.</div>
+  <div class="sub">Berechnet ab Briefdatum. Maßgeblich ist, wann der Brief tatsächlich ankam.</div>
+  <div class="how">
+    <div><b>1</b><span>Zugang am 17.10. angenommen (4-Tage-Regel, § 41 Abs. 2 VwVfG)</span></div>
+    <div><b>2</b><span>2 Wochen nach §§ 187, 188 BGB → rechnerisch Fr., 31.10.</span></div>
+    <div><b class="gold">3</b><span>Verschoben wegen Reformationstag (Niedersachsen) und Wochenende → Mo., 3.11. (§ 193 BGB)</span></div>
+  </div>
+</div>
+
+<!-- Bildunterschriften -->
+<div class="caption abs" id="cap1"><span class="step">1</span><h2>Frist im Brief finden.</h2><p>Datum des Schreibens und Fristformulierung werden regelbasiert erkannt – nicht von einer KI geraten.</p></div>
+<div class="caption abs" id="cap2"><span class="step">2</span><h2>Zugang berechnen.</h2><p>Ein Bescheid per Post gilt am vierten Tag nach seinem Datum als bekanntgegeben (§ 41 Abs. 2 VwVfG, § 37 Abs. 2 SGB X).</p></div>
+<div class="caption abs" id="cap3"><span class="step">3</span><h2>Zwei Wochen zählen.</h2><p>Die Frist beginnt am Tag nach dem Zugang (§§ 187, 188 BGB). Rechnerisches Ende: Freitag, 31. Oktober.</p></div>
+<div class="caption abs" id="cap4"><span class="step gold">4</span><h2>Feiertag? Wochenende? Weiter zum Werktag.</h2><p>Fällt das Ende auf einen Feiertag oder ein Wochenende, endet die Frist am nächsten Werktag (§ 193 BGB, § 31 Abs. 3 VwVfG). Feiertage gelten je Bundesland.</p></div>
+<div class="caption abs" id="cap5"><h2>Jeder Schritt nachvollziehbar.</h2><p>Annahmen offen, Rechtsgrundlagen genannt. Ohne Bundesland gilt vorsichtshalber das frühere Datum.</p></div>
+
+<script>
+// ---- Kalenderaufbau -------------------------------------------------------------------------------
+const DAYS = [];
+for (let d = 13; d <= 31; d++) DAYS.push({ key: "o" + d, n: d, mo: d === 13 ? "Okt" : "" });
+for (let d = 1; d <= 9; d++) DAYS.push({ key: "n" + d, n: d, mo: d === 1 ? "Nov" : "" });
+const grid = document.getElementById("grid");
+const CELL = {};
+DAYS.forEach((day, i) => {
+  const el = document.createElement("div");
+  el.className = "cell" + (i % 7 >= 5 ? " we" : "");
+  el.innerHTML = `<div class="bg"></div><span class="n">${day.n}</span><span class="mo">${day.mo}</span><div class="strike"></div><div class="ring"></div><div class="lab"></div>`;
+  grid.appendChild(el);
+  CELL[day.key] = { el, i, bg: el.querySelector(".bg"), n: el.querySelector(".n"), strike: el.querySelector(".strike"), ring: el.querySelector(".ring"), lab: el.querySelector(".lab") };
+});
+// Zellmitte aus dem Layout (offset* ignoriert die Einblend-Transformation des Kalenders).
+function center(key) {
+  const el = CELL[key].el, cal = document.getElementById("cal");
+  return [cal.offsetLeft + el.offsetLeft + el.offsetWidth / 2, cal.offsetTop + el.offsetTop + el.offsetHeight / 2];
+}
+
+// Kurze Etiketten direkt in den Tageszellen
+function label(key, cls, text) { const l = CELL[key].lab; l.className = "lab " + cls; l.textContent = text; return l; }
+const TAG = {
+  datiert: label("o13", "grey", "Briefdatum"),
+  zugang: label("o17", "inv", "Zugang"),
+  ende: label("o31", "dark", "Ende?"),
+  feiertag: null,
+  we1: label("n1", "grey", "Wochenende"),
+  we2: label("n2", "grey", "Wochenende"),
+  frist: label("n3", "gold", "Fristende"),
+};
+
+// ---- Zeitsteuerung --------------------------------------------------------------------------------
+const DURATION = 27;
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const ease = (x) => { x = clamp(x); return x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; };
+const at = (t, a, d = 0.45) => ease((t - a) / d);
+const win = (t, a, b, f = 0.45) => Math.min(at(t, a, f), ease((b - t) / f));
+const $ = (id) => document.getElementById(id);
+function show(el, o, dy = 0) { el.style.opacity = o; el.style.transform = `translateY(${(1 - o) * dy}px)`; el.style.visibility = o > 0.001 ? "visible" : "hidden"; }
+
+// Punkt hüpft über eine Folge von Tagen
+function hop(t, keys, a, b) {
+  if (t < a || t > b) return null;
+  const segs = keys.length - 1, p = clamp((t - a) / (b - a)) * segs, s = Math.min(Math.floor(p), segs - 1), f = ease(p - s);
+  const [x1, y1] = center(keys[s]), [x2, y2] = center(keys[s + 1]);
+  return [x1 + (x2 - x1) * f, y1 + (y2 - y1) * f - Math.sin(Math.PI * f) * 46];
+}
+
+function render(t) {
+  // Titel
+  const tt = win(t, -1, 3.4);
+  show($("title"), tt, 30);
+  const br = (k) => 1 + 0.06 * Math.sin(t * 2.2 + k);
+  $("c1").style.transform = `scale(${br(0)})`; $("c2").style.transform = `scale(${br(1)})`; $("c3").style.transform = `scale(${br(2)})`;
+
+  // Szene 1: Brief
+  const L = win(t, 3.5, 8.1);
+  show($("letter"), L, 40);
+  $("letter").style.transform += ` scale(${0.96 + 0.04 * L})`;
+  $("m1").querySelector("i").style.transform = `scaleX(${at(t, 4.6, 0.6)})`;
+  $("m2").querySelector("i").style.transform = `scaleX(${at(t, 5.4, 0.9)})`;
+
+  // Kalender sichtbar 8.2 – 22.0
+  const C = win(t, 8.2, 22.0, 0.5);
+  show($("cal"), C, 30);
+
+  // Szene 2: Briefdatum + 4 Tage
+  const s13 = at(t, 8.9);
+  CELL.o13.ring.style.opacity = s13 * 0.35;
+  TAG.datiert.style.opacity = s13;
+  const z = at(t, 11.0, 0.35);
+  CELL.o17.bg.style.background = `rgba(29,29,31,${z})`;
+  CELL.o17.n.style.color = z > 0.5 ? "#fff" : "";
+  TAG.zugang.style.opacity = z;
+
+  // Szene 3: 14 Tage zählen (18.10. – 31.10.)
+  const countA = 12.6, countB = 15.6;
+  const order = []; for (let d = 18; d <= 31; d++) order.push("o" + d);
+  let counted = 0;
+  order.forEach((k, idx) => {
+    const ta = countA + idx * ((countB - countA) / 14);
+    const f = at(t, ta, 0.25);
+    if (f > 0.5) counted = idx + 1;
+    if (k !== "o31") CELL[k].bg.style.background = `rgba(255,204,0,${0.38 * f})`;
+  });
+  const endF = at(t, countB - 0.1, 0.3);
+  const hol = at(t, 17.3, 0.4);
+  CELL.o31.bg.style.background = hol > 0.01 ? `rgba(221,0,0,${0.14 * hol})` : `rgba(255,204,0,${endF})`;
+  CELL.o31.strike.style.transform = `scaleX(${hol})`;
+  TAG.ende.style.opacity = endF;
+  if (hol > 0.5) { TAG.ende.className = "lab red"; TAG.ende.textContent = "Feiertag"; } else { TAG.ende.className = "lab dark"; TAG.ende.textContent = "Ende?"; }
+  const cnt = $("counter");
+  cnt.innerHTML = counted ? `+ ${counted} ${counted === 1 ? "Tag" : "Tage"} <span>ab dem Tag nach dem Zugang</span>` : "";
+  show(cnt, win(t, 12.6, 16.8) * C, 10);
+  show($("note"), win(t, 17.6, 22.0), 10);
+
+  // Szene 4: Bundesland, Feiertag, Wochenende, nächster Werktag
+  show($("chip"), win(t, 16.6, 22.0) , -12);
+  const we = at(t, 18.4);
+  ["n1", "n2"].forEach((k) => { CELL[k].bg.style.background = `repeating-linear-gradient(135deg, rgba(142,142,147,${0.22 * we}) 0 10px, transparent 10px 20px)`; });
+  TAG.we1.style.opacity = we; TAG.we2.style.opacity = we;
+  const d = hop(t, ["o31", "n1", "n2", "n3"], 19.1, 20.3);
+  $("dot").style.opacity = d ? 1 : 0;
+  if (d) { $("dot").style.left = d[0] + "px"; $("dot").style.top = d[1] + "px"; }
+  const fin = at(t, 20.3, 0.35);
+  CELL.n3.bg.style.background = `rgba(29,29,31,${fin})`;
+  CELL.n3.n.style.color = fin > 0.5 ? "#fff" : "";
+  CELL.n3.ring.style.borderColor = "var(--gold)";
+  CELL.n3.ring.style.opacity = fin;
+  TAG.frist.style.opacity = fin;
+  show($("bayern"), win(t, 20.6, 22.0), 10);
+
+  // Szene 5: Ergebnis
+  show($("result"), win(t, 22.2, 99), 40);
+  $("result").querySelectorAll(".how div").forEach((row, i) => show(row, at(t, 23.2 + i * 0.5), 14));
+
+  // Bildunterschriften
+  show($("cap1"), win(t, 3.7, 8.1), 24);
+  show($("cap2"), win(t, 8.4, 12.5), 24);
+  show($("cap3"), win(t, 12.7, 16.5), 24);
+  show($("cap4"), win(t, 16.7, 22.0), 24);
+  show($("cap5"), win(t, 22.4, 99), 24);
+}
+window.DURATION = DURATION;
+window.render = render;
+render(0);
+</script>
+</body>
+</html>

@@ -35,6 +35,7 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - **Docling lokal** für OCR und Layout-Erkennung bei Fotos, Scans und textarmen PDFs einsetzen; entfernte Docling-Dienste sind deaktiviert.
 - Fristen, Rechtsverweise, LeiKa-IDs, Behördenhinweise sowie **angeforderte Unterlagen, Handlungen, Zahlungen** und **Rechtsbehelfsbelehrungen** strukturiert erkennen.
 - Relative Fristen wie „innerhalb eines Monats nach Bekanntgabe“ erkennen und konservativ ein mögliches Fristende schätzen. Geschätzte Fristen werden ausdrücklich als unsicher gekennzeichnet.
+- **Feiertage je Bundesland** berücksichtigen: Fällt ein Fristende auf einen gesetzlichen Feiertag oder ein Wochenende, verschiebt es sich auf den nächsten Werktag (§ 193 BGB, § 31 Abs. 3 VwVfG).
 - Hochgeladene Dokumente standardmäßig nur temporär im Speicher halten, mit Ablaufzeit, Größenbegrenzung und Lösch-Endpunkt.
 - Explizite Gesetzeszitate direkt mit **Gesetze im Internet** verknüpfen.
 - Bundesrecht und Rechtsprechung über die offizielle **Rechtsinformationen-des-Bundes-API** durchsuchen; inklusive Datumsfiltern, Pagination, ELI/ECLI-Metadaten und Detailabruf einzelner Entscheidungen. Explizite Gesetzeszitate behalten einen direkten amtlichen Fallback.
@@ -47,6 +48,14 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - Mit dem LLM **frei chatten und Folgefragen stellen**; bei Behörden- und Rechtsfragen wird weiterhin amtliche Evidenz eingebunden.
 - **Termine als Agentenaktion vorbereiten** und erst nach einer expliziten Nutzerbestätigung an einen freigegebenen Browser-/Behörden-Connector übergeben.
 - **Ausfüllbare PDF-Formulare erkennen und ausfüllen**; Profildaten können per LLM auf vorhandene PDF-Felder abgebildet werden. Das fertige PDF wird erst nach Bestätigung erzeugt.
+
+### So wird Ihre Frist berechnet
+
+<p align="center">
+  <img src="docs/media/fristberechnung-v1.gif" alt="Erklärfilm: Ein Bescheid vom 13.10.2025 enthält „binnen 2 Wochen nach Zugang“. Der Assistent markiert Datum und Frist, rechnet vier Tage bis zum angenommenen Zugang am 17.10., zählt zwei Wochen bis Freitag, 31.10. In Niedersachsen ist das der Reformationstag, danach folgt das Wochenende, also endet die Frist am Montag, 3.11. Zum Schluss erscheint die Ergebniskarte mit allen drei Rechenschritten." width="860" />
+  <br />
+  <sub>Erklärfilm in 27 Sekunden · <a href="docs/media/fristberechnung-v1.mp4">als MP4 in voller Auflösung</a> · Rechenbeispiel aus den automatischen Tests</sub>
+</p>
 
 ## Neu in v0.2.4
 
