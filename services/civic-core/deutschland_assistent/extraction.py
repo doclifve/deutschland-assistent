@@ -4,6 +4,7 @@ import calendar
 import re
 from datetime import date, timedelta
 
+from .feiertage import STATES, deadline_notes, next_working_day
 from .schemas import AppealInstruction, Deadline, LegalReference, RelativeDeadline, Requirement
 
 LAW_SLUGS = {
@@ -116,23 +117,28 @@ def add_months(d: date, months: int) -> date:
     return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
 
 
-def next_weekday(d: date) -> date:
-    while d.weekday() >= 5:
-        d += timedelta(days=1)
-    return d
+def next_weekday(d: date, state: str | None = None) -> date:
+    """Nächster Werktag ab ``d`` – überspringt Wochenenden und gesetzliche Feiertage (bundesweit bzw. des Landes)."""
+    return next_working_day(d, state)[0]
 
 
-def period_end(trigger_day: date, value: int, unit: str) -> date:
+def _raw_period_end(trigger_day: date, value: int, unit: str) -> date:
     if unit == "months":
-        end = add_months(trigger_day, value)
-    elif unit == "weeks":
-        end = trigger_day + timedelta(weeks=value)
-    else:
-        end = trigger_day + timedelta(days=value)
-    return next_weekday(end)
+        return add_months(trigger_day, value)
+    if unit == "weeks":
+        return trigger_day + timedelta(weeks=value)
+    return trigger_day + timedelta(days=value)
 
 
-def extract_relative_deadlines(text: str, document_date: date | None = None) -> list[RelativeDeadline]:
+def period_end(trigger_day: date, value: int, unit: str, state: str | None = None) -> date:
+    return next_weekday(_raw_period_end(trigger_day, value, unit), state)
+
+
+def extract_relative_deadlines(
+    text: str, document_date: date | None = None, state: str | None = None
+) -> list[RelativeDeadline]:
+    """Relative Fristen erkennen. ``state`` (z. B. "BY") ist das Bundesland der Behörde für die Feiertage."""
+    state = state.upper() if state and state.upper() in STATES else None
     out: list[RelativeDeadline] = []
     seen: set[tuple[int, str, str]] = set()
     for m in RELATIVE_RE.finditer(text):
@@ -145,16 +151,31 @@ def extract_relative_deadlines(text: str, document_date: date | None = None) -> 
         if key in seen:
             continue
         seen.add(key)
-        rd = RelativeDeadline(raw=" ".join(m.group(0).split()), period_value=value, period_unit=unit, trigger=trigger, document_date=document_date)
+        rd = RelativeDeadline(
+            raw=" ".join(m.group(0).split()),
+            period_value=value,
+            period_unit=unit,
+            trigger=trigger,
+            document_date=document_date,
+            bundesland=state,
+        )
         if document_date and trigger.lower() in POSTAL_TRIGGERS:
             days = 4 if document_date >= POSTMODG_CUTOFF else 3
             rd.assumed_trigger_date = document_date + timedelta(days=days)
-            rd.estimated_end = period_end(rd.assumed_trigger_date, value, unit)
+            rd.estimated_end, skipped = next_working_day(_raw_period_end(rd.assumed_trigger_date, value, unit), state)
             rd.basis = [
                 f"Annahme: Versand per Post am Datum des Schreibens; Bekanntgabe gilt am {'vierten' if days == 4 else 'dritten'} Tag danach (§ 37 Abs. 2 SGB X, § 41 Abs. 2 VwVfG, § 122 Abs. 2 AO).",
-                "Fristberechnung nach §§ 187 Abs. 1, 188 BGB; Fristende am Wochenende verschiebt sich auf Montag.",
-                "Feiertage sind nicht berücksichtigt. Das tatsächliche Fristende kann später liegen, nicht früher.",
+                "Fristberechnung nach §§ 187 Abs. 1, 188 BGB; fällt das Ende auf ein Wochenende oder einen gesetzlichen Feiertag, "
+                "endet die Frist am nächsten Werktag (§ 193 BGB, § 31 Abs. 3 VwVfG, § 26 Abs. 3 SGB X, § 108 Abs. 3 AO).",
+                (
+                    f"Feiertage für {STATES[state]} berücksichtigt."
+                    if state
+                    else "Nur bundesweite Feiertage berücksichtigt; Landesfeiertage am Sitz der Behörde können das Fristende verschieben, nie vorziehen."
+                ),
             ]
+            if skipped:
+                rd.basis.append("Fristende verschoben wegen: " + ", ".join(skipped) + ".")
+            rd.basis.extend(deadline_notes(rd.estimated_end, state))
         elif trigger.lower() == "zustellung":
             rd.basis = ["Bei förmlicher Zustellung zählt das Zustelldatum (z. B. auf dem gelben Umschlag); keine Schätzung möglich."]
         else:

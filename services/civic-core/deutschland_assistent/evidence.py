@@ -15,6 +15,17 @@ import httpx
 from .schemas import EvidenceBundle, EvidenceItem, LegalReference
 
 
+def _members(payload: object) -> list:
+    """Return the result list of a hydra collection; reject unexpected shapes as ValueError
+    so callers fall back gracefully instead of crashing with AttributeError."""
+    if not isinstance(payload, dict):
+        raise ValueError("Unerwartetes Antwortformat der Rechtsinformationen-API.")
+    members = payload.get("member") or payload.get("hydra:member") or []
+    if not isinstance(members, list):
+        raise ValueError("Unerwartetes Antwortformat der Rechtsinformationen-API.")
+    return members
+
+
 class GesetzeImInternet:
     source_id = "gesetze-im-internet"
 
@@ -170,7 +181,7 @@ class Neuris:
                 "pageIndex": max(page_index, 0),
             },
         )
-        members = payload.get("member") or payload.get("hydra:member") or []
+        members = _members(payload)
         out: list[EvidenceItem] = []
         for rank, member in enumerate(members[:limit]):
             entry = member.get("item", member) if isinstance(member, dict) else {}
@@ -240,7 +251,7 @@ class Neuris:
             params["dateTo"] = date_to.isoformat()
 
         payload = await self._get_json("/v1/case-law", params)
-        members = payload.get("member") or payload.get("hydra:member") or []
+        members = _members(payload)
         out: list[EvidenceItem] = []
         for rank, member in enumerate(members[:limit]):
             entry = member.get("item", member) if isinstance(member, dict) else {}

@@ -4,8 +4,9 @@ import os
 import threading
 import time
 import uuid
+from urllib.parse import quote
 
-from fastapi import FastAPI, File, Header, HTTPException, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
@@ -18,8 +19,10 @@ from .documents import DocumentParseError, parse_document
 from .forms import FormError, FormStore, SuggestContext, fill_form, read_form, suggest_by_label, suggest_by_model
 from .letters import draft_letter, extract_reference
 from .evidence import EvidenceEngine
+from .feiertage import STATES
 from .answer_generation import generate_grounded_explanation
-from .model_provider import ModelProviderError, build_model_provider
+from .byok import provider_from_headers, providers_info
+from .model_provider import ModelProvider, ModelProviderError, build_model_provider
 from .extraction import (
     classify_document,
     extract_appeal_instruction,
@@ -114,6 +117,24 @@ ACTION_STORE = ActionStore(ttl_seconds=ACTION_TTL_SECONDS)
 FORMS = FormStore(DOCUMENT_TTL_SECONDS, MAX_STORED_DOCUMENTS)
 
 
+def attachment_headers(filename: str, fallback: str = "dokument.pdf") -> dict[str, str]:
+    """Build a Content-Disposition header that is safe for any user-supplied filename.
+
+    HTTP headers must be latin-1; non-ASCII names would otherwise crash the response (HTTP 500).
+    An ASCII fallback is sent in ``filename`` and the full name RFC 5987-encoded in ``filename*``.
+    """
+    name = filename.strip() or fallback
+    ascii_name = "".join(ch if ch.isascii() and (ch.isalnum() or ch in "-_.") else "_" for ch in name)
+    if not ascii_name.strip("_."):
+        ascii_name = fallback
+    return {"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name, safe='')}"}
+
+
+def request_provider(request: Request) -> ModelProvider:
+    """Eigener Schlüssel aus den X-LLM-*-Headern, sonst der serverweite Standard."""
+    return provider_from_headers(request) or model_provider
+
+
 def primary_deadline(deadlines: list[Deadline], relative: list[RelativeDeadline]) -> Deadline | None:
     if deadlines:
         return min(deadlines, key=lambda d: d.date)
@@ -154,6 +175,27 @@ def channels():
     return channels_info()
 
 
+@app.get("/v1/llm/providers")
+def llm_providers():
+    """Welche Sprachmodell-Anbieter mit eigenem Schlüssel nutzbar sind und ob der Server selbst eines hat."""
+    return providers_info(model_provider)
+
+
+@app.post("/v1/llm/test")
+async def llm_test(provider: ModelProvider = Depends(request_provider)):
+    """Prüft die übergebenen (oder serverseitigen) Zugangsdaten mit einer minimalen Anfrage."""
+    if not provider.enabled:
+        raise HTTPException(503, "Kein Sprachmodell konfiguriert. Bitte eigenen API-Schlüssel angeben.")
+    try:
+        result = await provider.structured_generate(
+            system_prompt='Antworte nur mit dem JSON-Objekt {"ok": true}.',
+            user_prompt="Verbindungstest",
+        )
+    except ModelProviderError as exc:
+        raise HTTPException(502, str(exc)) from None
+    return {"ok": True, "model_answered": bool(result)}
+
+
 @app.get("/v1/sources")
 def sources():
     return {
@@ -187,7 +229,11 @@ def sources():
 
 
 @app.post("/v1/documents", response_model=DocumentAnalysis)
-async def documents(file: UploadFile = File(...)):
+async def documents(file: UploadFile = File(...), bundesland: str | None = Form(None)):
+    """``bundesland`` (z. B. "BY") ist optional und dient nur der Feiertagsberechnung bei Fristen."""
+    state = (bundesland or "").strip().upper() or None
+    if state and state not in STATES:
+        raise HTTPException(422, f"Unbekanntes Bundesland: {bundesland}. Erlaubt: {', '.join(STATES)}.")
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if not data:
         raise HTTPException(400, "Leere Datei.")
@@ -210,7 +256,7 @@ async def documents(file: UploadFile = File(...)):
     text = parsed.text
     doc_id = "doc_" + uuid.uuid4().hex[:16]
     doc_date = extract_document_date(text)
-    relative = extract_relative_deadlines(text, doc_date)
+    relative = extract_relative_deadlines(text, doc_date, state)
     requirements = extract_requirements(text)
     appeal = extract_appeal_instruction(text)
     rel_warn = ["Frist ist relativ formuliert, aber das Datum des Schreibens wurde nicht erkannt."] if relative and not doc_date else []
@@ -265,10 +311,10 @@ def _analysis_for_document(document_id: str | None) -> DocumentAnalysis | None:
 
 
 @app.post("/v1/chat", response_model=ChatResponse)
-async def chat_endpoint(req: ChatRequest):
+async def chat_endpoint(req: ChatRequest, provider: ModelProvider = Depends(request_provider)):
     analysis = _analysis_for_document(req.document_id)
     return await chat_with_assistant(
-        model_provider,
+        provider,
         engine,
         messages=req.messages,
         language=req.language,
@@ -320,7 +366,7 @@ def _stored_form(form_id: str):
 
 
 @app.post("/v1/forms/{form_id}/suggest", response_model=FormSuggestions)
-async def forms_suggest(form_id: str, req: FormSuggestRequest):
+async def forms_suggest(form_id: str, req: FormSuggestRequest, provider: ModelProvider = Depends(request_provider)):
     """Suggest field values only from user data / document facts; never invent personal data."""
     from .forms import clean_profile
 
@@ -336,7 +382,7 @@ async def forms_suggest(form_id: str, req: FormSuggestRequest):
     notes: list[str] = []
     if req.use_model_for_mapping and unmatched:
         try:
-            suggestions += await suggest_by_model(model_provider, unmatched, ctx)
+            suggestions += await suggest_by_model(provider, unmatched, ctx)
         except ModelProviderError as exc:
             notes.append(f"Zuordnung per Sprachmodell nicht verfügbar: {exc}")
     filled = {s.field_id for s in suggestions}
@@ -366,11 +412,10 @@ async def forms_fill_legacy(form_id: str, req: FormFillRequest):
     except FormError as exc:
         raise HTTPException(422, str(exc)) from exc
     name = (info.filename.rsplit(".", 1)[0] or "formular") + "-ausgefuellt.pdf"
-    safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in name)
     return Response(
         content=pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{safe}"'},
+        headers=attachment_headers(name, "formular-ausgefuellt.pdf"),
     )
 
 
@@ -407,7 +452,7 @@ async def inspect_form(file: UploadFile = File(...)):
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(415, "Der Formular-Agent unterstützt derzeit ausfüllbare PDF-Formulare.")
     try:
-        inspection = inspect_pdf_form(data, filename, ACTION_TTL_SECONDS, ACTION_STORE)
+        inspection = await run_in_threadpool(inspect_pdf_form, data, filename, ACTION_TTL_SECONDS, ACTION_STORE)
     except Exception as exc:
         raise HTTPException(422, f"PDF-Formular konnte nicht gelesen werden: {type(exc).__name__}") from exc
     if not inspection.fields:
@@ -437,13 +482,15 @@ def prepare_form_fill(form_id: str, req: FormFillPrepareRequest):
 
 
 @app.post("/v1/forms/{form_id}/agent-prepare", response_model=ActionPreview)
-async def agent_prepare_form(form_id: str, req: FormAgentPrepareRequest):
+async def agent_prepare_form(
+    form_id: str, req: FormAgentPrepareRequest, provider: ModelProvider = Depends(request_provider)
+):
     form = ACTION_STORE.get_form(form_id)
     if not form:
         raise HTTPException(404, "Formular nicht gefunden oder abgelaufen.")
     try:
         mapping = await map_profile_to_form(
-            model_provider,
+            provider,
             fields=form.fields,
             profile=req.profile,
             notes=req.notes,
@@ -489,7 +536,8 @@ def confirm_action(action_id: str, req: ActionConfirmRequest):
         updated = current.model_copy(
             update={"status": "cancelled", "version": current.version + 1}
         )
-        ACTION_STORE.update_action(action_id, updated)
+        if not ACTION_STORE.update_action(action_id, updated, expected_version=current.version):
+            raise HTTPException(409, "Die Aktion wurde zwischenzeitlich geändert.")
         return updated
 
     artifact = None
@@ -518,7 +566,10 @@ def confirm_action(action_id: str, req: ActionConfirmRequest):
             "artifact_url": artifact_url,
         }
     )
-    ACTION_STORE.update_action(action_id, updated, artifact=artifact, artifact_name=artifact_name)
+    if not ACTION_STORE.update_action(
+        action_id, updated, artifact=artifact, artifact_name=artifact_name, expected_version=current.version
+    ):
+        raise HTTPException(409, "Die Aktion wurde zwischenzeitlich geändert.")
     return updated
 
 
@@ -527,11 +578,10 @@ def action_artifact(action_id: str):
     stored = ACTION_STORE.get_action(action_id)
     if not stored or not stored.artifact:
         raise HTTPException(404, "Kein Artefakt für diese Aktion vorhanden.")
-    filename = stored.artifact_name or "dokument.pdf"
     return Response(
         content=stored.artifact,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers=attachment_headers(stored.artifact_name or "dokument.pdf"),
     )
 
 
@@ -564,12 +614,13 @@ def complete_external_action(
             "payload": payload,
         }
     )
-    ACTION_STORE.update_action(action_id, updated)
+    if not ACTION_STORE.update_action(action_id, updated, expected_version=current.version):
+        raise HTTPException(409, "Die Aktion wurde zwischenzeitlich geändert.")
     return updated
 
 
 @app.post("/v1/ask", response_model=CivicAnswer)
-async def ask(req: AskRequest):
+async def ask(req: AskRequest, provider: ModelProvider = Depends(request_provider)):
     text = req.message
     analysis = None
     if req.document_id:
@@ -580,7 +631,7 @@ async def ask(req: AskRequest):
 
     refs = analysis.legal_references if analysis else extract_legal_references(text)
     deadlines = analysis.deadlines if analysis else extract_deadlines(text)
-    relative = analysis.relative_deadlines if analysis else extract_relative_deadlines(text)
+    relative = analysis.relative_deadlines if analysis else extract_relative_deadlines(text, None, req.bundesland)
     leika = analysis.leika_ids if analysis else extract_leika_ids(text)
     requirements = analysis.requirements if analysis else extract_requirements(text)
     appeal = analysis.appeal_instruction if analysis else extract_appeal_instruction(text)
@@ -613,7 +664,7 @@ async def ask(req: AskRequest):
     generated_meaning: str | None = None
     try:
         generated_meaning = await generate_grounded_explanation(
-            model_provider,
+            provider,
             question=req.message,
             analysis=analysis,
             bundle=bundle,

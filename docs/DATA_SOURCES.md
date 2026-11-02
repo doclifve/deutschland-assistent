@@ -1,5 +1,7 @@
 # Datenquellen — v0.2.4
 
+> Was noch fehlt (priorisiert, mit Fundstellen): [QUELLEN_BEDARF.md](QUELLEN_BEDARF.md)
+
 ## Gesetze im Internet
 
 Deterministischer Fallback für explizite Bundesgesetz-Zitate mit direkten Links auf die amtliche Fassung.

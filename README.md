@@ -35,6 +35,7 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - **Docling lokal** für OCR und Layout-Erkennung bei Fotos, Scans und textarmen PDFs einsetzen; entfernte Docling-Dienste sind deaktiviert.
 - Fristen, Rechtsverweise, LeiKa-IDs, Behördenhinweise sowie **angeforderte Unterlagen, Handlungen, Zahlungen** und **Rechtsbehelfsbelehrungen** strukturiert erkennen.
 - Relative Fristen wie „innerhalb eines Monats nach Bekanntgabe“ erkennen und konservativ ein mögliches Fristende schätzen. Geschätzte Fristen werden ausdrücklich als unsicher gekennzeichnet.
+- **Feiertage je Bundesland** berücksichtigen: Fällt ein Fristende auf einen gesetzlichen Feiertag oder ein Wochenende, verschiebt es sich auf den nächsten Werktag (§ 193 BGB, § 31 Abs. 3 VwVfG).
 - Hochgeladene Dokumente standardmäßig nur temporär im Speicher halten, mit Ablaufzeit, Größenbegrenzung und Lösch-Endpunkt.
 - Explizite Gesetzeszitate direkt mit **Gesetze im Internet** verknüpfen.
 - Bundesrecht und Rechtsprechung über die offizielle **Rechtsinformationen-des-Bundes-API** durchsuchen; inklusive Datumsfiltern, Pagination, ELI/ECLI-Metadaten und Detailabruf einzelner Entscheidungen. Explizite Gesetzeszitate behalten einen direkten amtlichen Fallback.
@@ -43,10 +44,18 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - Fragen über eine einfache Weboberfläche stellen.
 - WhatsApp anbinden: Texte, Fotos und Dokumente können über die WhatsApp Cloud API in denselben Analyse-Workflow gelangen.
 - OpenClaw als optionalen Kanal-/Agent-Gateway nutzen, ohne die fachliche Logik dorthin zu verlagern.
-- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als Erklärungsschicht hinter der Evidence Engine verwenden.
+- Optional ein **in Deutschland betriebenes, OpenAI-kompatibles Sprachmodell** als Erklärungsschicht hinter der Evidence Engine verwenden – oder mit dem **eigenen API-Schlüssel** (IONOS, STACKIT, Mistral, Claude, OpenAI) direkt in der Weboberfläche.
 - Mit dem LLM **frei chatten und Folgefragen stellen**; bei Behörden- und Rechtsfragen wird weiterhin amtliche Evidenz eingebunden.
 - **Termine als Agentenaktion vorbereiten** und erst nach einer expliziten Nutzerbestätigung an einen freigegebenen Browser-/Behörden-Connector übergeben.
 - **Ausfüllbare PDF-Formulare erkennen und ausfüllen**; Profildaten können per LLM auf vorhandene PDF-Felder abgebildet werden. Das fertige PDF wird erst nach Bestätigung erzeugt.
+
+### So wird Ihre Frist berechnet
+
+<p align="center">
+  <img src="docs/media/fristberechnung-v1.gif" alt="Erklärfilm: Ein Bescheid vom 13.10.2025 enthält „binnen 2 Wochen nach Zugang“. Der Assistent markiert Datum und Frist, rechnet vier Tage bis zum angenommenen Zugang am 17.10., zählt zwei Wochen bis Freitag, 31.10. In Niedersachsen ist das der Reformationstag, danach folgt das Wochenende, also endet die Frist am Montag, 3.11. Zum Schluss erscheint die Ergebniskarte mit allen drei Rechenschritten." width="860" />
+  <br />
+  <sub>Erklärfilm in 27 Sekunden · <a href="docs/media/fristberechnung-v1.mp4">als MP4 in voller Auflösung</a> · Rechenbeispiel aus den automatischen Tests</sub>
+</p>
 
 ## Neu in v0.2.4
 
@@ -210,9 +219,16 @@ Danach:
 - API-Dokumentation: http://localhost:8000/docs
 - Healthcheck: http://localhost:8000/health
 
-### Variante B – ohne Docker
+### Variante B – ohne Docker, mit `make` (empfohlen für Entwicklung)
 
-Benötigt Python 3.11+ und Node.js 20+.
+Benötigt Python 3.11+ und Node.js 20.9+.
+
+    make setup   # .env anlegen, Python-venv + npm ci
+    make dev     # API :8000 und Web :3000 mit Auto-Reload
+
+`make help` listet alle Befehle (u. a. `make check` = Lint, Tests und Web-Build wie in der CI).
+
+### Variante C – ohne Docker, manuell
 
 Backend:
 
@@ -225,7 +241,7 @@ Backend:
 Weboberfläche:
 
     cd apps/web
-    npm install
+    npm ci
     npm run dev
 
 Docling/OCR lokal installieren:
@@ -271,13 +287,17 @@ Dokument hochladen:
 | NEURIS_CACHE_TTL_SECONDS | 900 | TTL des lokalen API-Caches |
 | NEURIS_MAX_RETRIES | 2 | Wiederholungen bei 429/5xx |
 | NEURIS_ENRICH_CASE_LAW | true | wichtige Rechtsprechungstreffer über den Detail-Endpunkt anreichern |
-| LLM_PROVIDER | disabled | disabled, germany_hosted, openai_compatible oder ollama |
-| LLM_BASE_URL | – | OpenAI-kompatibler /v1-Endpunkt |
-| LLM_MODEL | – | Modellname am Inferenz-Endpunkt |
+| LLM_PROVIDER | disabled | disabled, ein Anbieter (ionos, stackit, mistral, anthropic, openai) oder germany_hosted, openai_compatible, ollama |
+| LLM_BASE_URL | – | OpenAI-kompatibler /v1-Endpunkt (bei Anbieter-Voreinstellungen nicht nötig) |
+| LLM_MODEL | – | Modellname; bei Voreinstellungen optional (Standardmodell des Anbieters) |
 | LLM_API_KEY | – | optionaler API-Schlüssel; nie committen |
 | LLM_REGION | DE | bei germany_hosted zwingend DE |
 | LLM_TIMEOUT_SECONDS | 60 | Timeout der Erklärungsschicht |
-| LLM_MAX_TOKENS | 900 | maximale Antwortlänge der Erklärungsschicht |
+| LLM_MAX_TOKENS | 900 | maximale Antwortlänge (Claude: mindestens 16000, da Thinking mitzählt) |
+| LLM_EFFORT | – | nur Claude: low, medium, high, xhigh oder max |
+| BYOK_ENABLED | true | Nutzerinnen und Nutzer dürfen einen eigenen API-Schlüssel mitschicken |
+| BYOK_ALLOWED_PROVIDERS | alle außer custom | Komma-Liste erlaubter Anbieter für eigene Schlüssel |
+| BYOK_ALLOW_CUSTOM_BASE_URL | false | eigene Endpunkt-URLs erlauben (nur öffentliches HTTPS; Risiko SSRF) |
 | WHATSAPP_PUBLIC_NUMBER | – | öffentliche WhatsApp-Nummer im E.164-Format |
 | WHATSAPP_GREETING | Hallo | vorausgefüllte Begrüßung im Chat |
 | WHATSAPP_APP_SECRET | – | Prüfung der Meta-Webhook-Signatur; in Produktion erforderlich |
@@ -398,6 +418,41 @@ Beispiel für die interne Evidenzkette:
 Rechtsprechung bleibt dabei eine eigene Evidenzart und wird **nicht** wie eine Gesetzesnorm behandelt.
 
 Die API befindet sich weiterhin in der Testphase. Deshalb bleibt **Gesetze im Internet** für explizite Normzitate ein unabhängiger amtlicher Fallback.
+
+## Mit eigenem API-Schlüssel nutzen
+
+Der Assistent funktioniert ohne Sprachmodell. Chat, Erklärungen und Formular-Agent werden erst mit einem Modell freigeschaltet, und dafür reicht ein **eigener API-Schlüssel**. Es gibt zwei Wege:
+
+**1. In der Weboberfläche (jede Person mit eigenem Konto):** Abschnitt „Ihr eigener KI-Schlüssel“ → Anbieter wählen, Schlüssel einfügen, „Verbindung testen“. Der Schlüssel bleibt im Browser (standardmäßig nur bis zum Schließen des Tabs, optional „auf diesem Gerät merken“) und wird nur bei Anfragen an ein Sprachmodell mitgeschickt. Der Server speichert und protokolliert ihn nicht.
+
+**2. Für den ganzen Server (Betreiber):** in `.env` einen Anbieter eintragen, zum Beispiel
+
+    LLM_PROVIDER=ionos        # oder stackit, mistral, anthropic, openai
+    LLM_API_KEY=<ihr-schlüssel>
+    LLM_MODEL=                # optional, sonst Standardmodell des Anbieters
+
+| Anbieter | `LLM_PROVIDER` | Verarbeitung | Standardmodell |
+|---|---|---|---|
+| IONOS AI Model Hub | `ionos` | Deutschland | `openai/gpt-oss-120b` |
+| STACKIT AI Model Serving | `stackit` | Deutschland | – (Modell angeben) |
+| Mistral AI | `mistral` | EU | `mistral-large-latest` |
+| Anthropic Claude | `anthropic` | USA | `claude-opus-5-5` |
+| OpenAI | `openai` | USA | – (Modell angeben) |
+| Eigener Endpunkt | `custom` bzw. `openai_compatible` | je nach Betrieb | – |
+
+Über die API funktioniert der eigene Schlüssel pro Anfrage mit Headern, zum Beispiel:
+
+    curl -X POST http://localhost:8000/v1/chat \
+      -H 'Content-Type: application/json' \
+      -H 'X-LLM-Provider: mistral' \
+      -H "X-LLM-Api-Key: $MISTRAL_API_KEY" \
+      -d '{"messages":[{"role":"user","content":"Was ist Wohngeld?"}]}'
+
+`X-LLM-Model` ist optional, `X-LLM-Base-Url` gibt es nur für `custom`. `GET /v1/llm/providers` listet die erlaubten Anbieter, `POST /v1/llm/test` prüft einen Schlüssel. Die Header wirken auf `/v1/ask`, `/v1/chat`, `/v1/forms/{id}/suggest` und `/v1/forms/{id}/agent-prepare`.
+
+Bei Claude nutzt der Core das offizielle `anthropic`-SDK. Für unterstützte Modelle ist der serverseitige Fallback bei Ablehnungen durch Sicherheitsklassifikatoren aktiv (`fallbacks: "default"`).
+
+Für personenbezogene Behördenpost empfehlen wir einen Anbieter mit Verarbeitung in Deutschland. Die Oberfläche weist bei anderen Regionen darauf hin.
 
 ## Deutschland-gehostetes Sprachmodell
 
@@ -520,7 +575,10 @@ Siehe [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entwicklung und Tests
 
-    make test
+    make check   # Ruff, pytest (Civic Core + WhatsApp-Adapter), Next.js-Build
+    make test    # nur Python-Tests
+
+Für Claude Code liegen projektspezifische Skills unter `.claude/skills/` (Stack starten, Qualität prüfen, Quellen, Extraktion, API-Endpunkte, Agentenaktionen); Projektkontext steht in `CLAUDE.md`.
 
 Neue Funktionen mit potenziell großen Folgen für Bürgerinnen und Bürger sollten nicht nur neue Features, sondern auch passende Tests und Evaluationen mitbringen.
 

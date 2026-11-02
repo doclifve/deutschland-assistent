@@ -12,7 +12,6 @@ from deutschland_assistent.model_provider import (
 from deutschland_assistent.schemas import (
     DocumentAnalysis,
     EvidenceBundle,
-    EvidenceItem,
     Requirement,
 )
 

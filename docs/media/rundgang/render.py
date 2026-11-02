@@ -1,4 +1,6 @@
-"""Render the keynote-style walkthrough (docs/media/<NAME>.mp4 and .gif).
+"""Render the keynote-style films (docs/media/<NAME>.mp4 and .gif).
+
+Films: ``rundgang`` (Produkt-Rundgang, Standard) and ``fristberechnung`` (Erklärfilm zur Fristberechnung).
 
 The film is driven frame by frame through window.render(t), so motion is exact
 regardless of machine speed. It reuses the web app's stylesheet, so re-run this
@@ -6,29 +8,37 @@ after UI changes.
 
 Requirements: Python with `playwright` (plus `playwright install chromium`) and ffmpeg.
 
-    python docs/media/rundgang/render.py
+    python docs/media/rundgang/render.py                  # Rundgang
+    python docs/media/rundgang/render.py fristberechnung  # Erklärfilm Fristberechnung
 """
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 from playwright.async_api import async_playwright
 
-HERE = Path(__file__).resolve().parent
-OUT = HERE.parent
+OUT = Path(__file__).resolve().parent.parent
 FPS = 30
-# Bump the version whenever the film changes: GitHub and browsers cache images by
+# Bump the version whenever a film changes: GitHub and browsers cache images by
 # file name, so a re-render under the same name keeps showing the old animation.
-NAME = "rundgang-v2"
+FILMS = {"rundgang": "rundgang-v2", "fristberechnung": "fristberechnung-v1"}
+FILM = sys.argv[1] if len(sys.argv) > 1 else "rundgang"
+if FILM not in FILMS:
+    raise SystemExit(f"Unbekannter Film {FILM!r}. Verfügbar: {', '.join(FILMS)}")
+HERE = OUT / FILM
+NAME = FILMS[FILM]
 
 
 async def render_frames(frames: Path) -> None:
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        # Optional: vorhandenen Chromium nutzen, z. B. CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1243/chrome-linux64/chrome
+        browser = await p.chromium.launch(executable_path=os.getenv("CHROMIUM_EXECUTABLE") or None)
         page = await browser.new_page(viewport={"width": 1920, "height": 1080})
         await page.goto((HERE / "film.html").as_uri())
         await page.wait_for_timeout(300)

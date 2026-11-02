@@ -289,3 +289,15 @@ h1, h2, h3, p { margin: 0; }
 @media (min-width: 900px) {
   .agent-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+.state-select { display: flex; flex-direction: column; gap: 6px; width: 100%; font-size: 14px; color: var(--muted); text-align: left; }
+.state-select select { font: inherit; font-size: 16px; color: inherit; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(0, 0, 0, 0.12); background: #fff; width: 100%; }
+
+.llm-card { margin-top: 36px; max-width: 640px; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
+.field input, .field select { font: inherit; font-size: 16px; color: var(--ink); padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(0, 0, 0, 0.12); background: #fff; width: 100%; box-sizing: border-box; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--muted); line-height: 1.4; }
+.check input { margin-top: 3px; }
+.notice { margin: 0; padding: 12px 14px; border-radius: 14px; background: #FFF8E1; color: #6B4E00; font-size: 14px; line-height: 1.45; }
+.success { margin: 0; padding: 12px 14px; border-radius: 14px; background: #E8F5E9; color: #1B5E20; font-size: 14px; line-height: 1.45; }
+.agent-form .check input[type="checkbox"] { width: 18px; height: 18px; min-height: 0; flex: none; padding: 0; margin: 2px 0 0; border-radius: 4px; }

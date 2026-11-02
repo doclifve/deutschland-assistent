@@ -21,6 +21,16 @@ Nutze diesen Skill für Bürgerfragen, deutsche Behörden- und Rechtsinformation
 - Nur Aktionen mit Status `approved` dürfen über einen Browser-/Connector-Agenten ausgeführt werden.
 - Nach der externen Ausführung Ergebnis und Referenz über den geschützten Complete-Endpunkt zurückmelden.
 
+## Eigener API-Schlüssel (optional)
+
+Hat der Server kein Sprachmodell, kann jede Anfrage an `/v1/chat`, `/v1/ask` und `/v1/forms/{id}/agent-prepare` den Schlüssel der Nutzerin oder des Nutzers mitschicken:
+
+- `X-LLM-Provider`: `ionos`, `stackit`, `mistral`, `anthropic` oder `openai`
+- `X-LLM-Api-Key`: der Schlüssel; nie in Logs, Chatverläufe oder Dateien schreiben
+- `X-LLM-Model`: optional
+
+`GET /v1/llm/providers` zeigt die erlaubten Anbieter, `POST /v1/llm/test` prüft den Schlüssel.
+
 ## Chat
 
 POST `$DEUTSCHLAND_ASSISTENT_API/v1/chat`

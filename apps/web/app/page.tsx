@@ -2,7 +2,52 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+const BUNDESLAENDER: Record<string, string> = {
+  BW: "Baden-Württemberg", BY: "Bayern", BE: "Berlin", BB: "Brandenburg", HB: "Bremen", HH: "Hamburg",
+  HE: "Hessen", MV: "Mecklenburg-Vorpommern", NI: "Niedersachsen", NW: "Nordrhein-Westfalen",
+  RP: "Rheinland-Pfalz", SL: "Saarland", SN: "Sachsen", ST: "Sachsen-Anhalt", SH: "Schleswig-Holstein", TH: "Thüringen",
+};
+
 const API = process.env.NEXT_PUBLIC_CIVIC_API_URL || "http://localhost:8000";
+
+// Eigener KI-Schlüssel ("Bring your own key"): bleibt im Browser und geht nur an Endpunkte, die ein Modell nutzen.
+type LlmProvider = {
+  id: string; label: string; region: string; default_model: string | null;
+  model_required: boolean; key_hint: string; docs_url: string;
+};
+type LlmInfo = { server_llm_configured: boolean; byok_enabled: boolean; custom_base_url_allowed: boolean; providers: LlmProvider[] };
+type LlmSettings = { provider: string; apiKey: string; model: string; baseUrl: string; remember: boolean };
+const EMPTY_LLM: LlmSettings = { provider: "", apiKey: "", model: "", baseUrl: "", remember: false };
+const LLM_STORAGE_KEY = "llm-settings";
+
+function loadLlmSettings(): LlmSettings {
+  for (const store of ["sessionStorage", "localStorage"] as const) {
+    try {
+      const raw = window[store].getItem(LLM_STORAGE_KEY);
+      if (raw) return { ...EMPTY_LLM, ...JSON.parse(raw) };
+    } catch {}
+  }
+  return EMPTY_LLM;
+}
+
+function saveLlmSettings(s: LlmSettings) {
+  try {
+    window.sessionStorage.removeItem(LLM_STORAGE_KEY);
+    window.localStorage.removeItem(LLM_STORAGE_KEY);
+    if (s.provider) (s.remember ? window.localStorage : window.sessionStorage).setItem(LLM_STORAGE_KEY, JSON.stringify(s));
+  } catch {}
+}
+
+function llmHeaders(s: LlmSettings): Record<string, string> {
+  if (!s.provider || (!s.apiKey && s.provider !== "custom")) return {};
+  const h: Record<string, string> = { "X-LLM-Provider": s.provider };
+  if (s.apiKey) h["X-LLM-Api-Key"] = s.apiKey;
+  if (s.model.trim()) h["X-LLM-Model"] = s.model.trim();
+  if (s.provider === "custom" && s.baseUrl.trim()) h["X-LLM-Base-Url"] = s.baseUrl.trim();
+  return h;
+}
+
+const REGION_LABEL: Record<string, string> = { DE: "Deutschland", EU: "EU", US: "USA" };
 
 type View = "home" | "loading" | "result";
 
@@ -61,6 +106,58 @@ export default function Home() {
   const [question, setQuestion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [llmInfo, setLlmInfo] = useState<LlmInfo | null>(null);
+  const [llm, setLlm] = useState<LlmSettings>(EMPTY_LLM);
+  const [llmStatus, setLlmStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [llmBusy, setLlmBusy] = useState(false);
+  useEffect(() => {
+    setLlm(loadLlmSettings());
+    fetch(API + "/v1/llm/providers")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setLlmInfo(d))
+      .catch(() => {});
+  }, []);
+  function updateLlm(patch: Partial<LlmSettings>) {
+    const next = { ...llm, ...patch };
+    setLlm(next);
+    saveLlmSettings(next);
+    setLlmStatus(null);
+  }
+  function clearLlm() {
+    setLlm(EMPTY_LLM);
+    saveLlmSettings(EMPTY_LLM);
+    setLlmStatus({ ok: true, text: "Schlüssel aus diesem Browser gelöscht." });
+  }
+  async function testLlm() {
+    setLlmBusy(true);
+    setLlmStatus(null);
+    try {
+      const r = await fetch(API + "/v1/llm/test", { method: "POST", headers: llmHeaders(llm) });
+      if (!r.ok) throw await apiError(r);
+      setLlmStatus({ ok: true, text: "Verbindung erfolgreich. Ihr Schlüssel wird jetzt für Antworten und Agenten genutzt." });
+    } catch (e) {
+      setLlmStatus({ ok: false, text: errorText(e) });
+    } finally {
+      setLlmBusy(false);
+    }
+  }
+  const selectedProvider = llmInfo?.providers.find((p) => p.id === llm.provider);
+  const ownKeyActive = Object.keys(llmHeaders(llm)).length > 0;
+  // Bundesland der Behörde: nur für Feiertage bei der Fristberechnung, bleibt im Browser gespeichert.
+  const [bundesland, setBundesland] = useState("");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("bundesland");
+      if (saved && saved in BUNDESLAENDER) setBundesland(saved);
+    } catch {}
+  }, []);
+  function chooseBundesland(value: string) {
+    setBundesland(value);
+    try {
+      if (value) window.localStorage.setItem("bundesland", value);
+      else window.localStorage.removeItem("bundesland");
+    } catch {}
+  }
   const howRef = useRef<HTMLElement>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppChannel | null>(null);
   const [qr, setQr] = useState<string | null>(null);
@@ -75,6 +172,8 @@ export default function Home() {
   const [formInspection, setFormInspection] = useState<any>(null);
   const [formProfile, setFormProfile] = useState("");
   const [formAction, setFormAction] = useState<any>(null);
+  const [appointmentError, setAppointmentError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Public channel details come from the API; the section only shows when a number is configured.
   useEffect(() => {
@@ -98,18 +197,41 @@ export default function Home() {
   async function askApi(message: string, documentId?: string) {
     const r = await fetch(API + "/v1/ask", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, language: "de", document_id: documentId }),
+      headers: { "Content-Type": "application/json", ...llmHeaders(llm) },
+      body: JSON.stringify({ message, language: "de", document_id: documentId, bundesland: bundesland || undefined }),
     });
-    if (!r.ok) throw new Error(r.status === 404 ? "Das Dokument ist abgelaufen. Bitte erneut hochladen." : await r.text());
+    if (!r.ok) throw r.status === 404 ? new Error("Das Dokument ist abgelaufen. Bitte erneut hochladen.") : await apiError(r);
     return r.json();
   }
 
-  function fail(e: unknown) {
-    const msg = e instanceof TypeError
+  // FastAPI returns {"detail": "..."}; show that text instead of raw JSON.
+  async function apiError(r: Response): Promise<Error> {
+    const raw = await r.text();
+    try {
+      const detail = JSON.parse(raw)?.detail;
+      if (typeof detail === "string") return new Error(detail);
+    } catch {}
+    return new Error(raw || `Fehler ${r.status}`);
+  }
+
+  function errorText(e: unknown) {
+    return e instanceof TypeError
       ? `Keine Verbindung zum Backend unter ${API}. Läuft es?`
       : String(e instanceof Error ? e.message : e);
-    setError(msg);
+  }
+
+  // Agent actions run from click handlers; never let a rejection go unnoticed.
+  async function guarded(setErr: (m: string | null) => void, fn: () => Promise<void>) {
+    setErr(null);
+    try {
+      await fn();
+    } catch (e) {
+      setErr(errorText(e));
+    }
+  }
+
+  function fail(e: unknown) {
+    setError(errorText(e));
     setView("home");
     window.scrollTo({ top: 0 });
   }
@@ -121,8 +243,9 @@ export default function Home() {
     try {
       const f = new FormData();
       f.append("file", file);
+      if (bundesland) f.append("bundesland", bundesland);
       const r = await fetch(API + "/v1/documents", { method: "POST", body: f });
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) throw await apiError(r);
       const d = await r.json();
       setDoc(d);
       setQuestion(null);
@@ -167,53 +290,64 @@ export default function Home() {
     try {
       const r = await fetch(API + "/v1/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...llmHeaders(llm) },
         body: JSON.stringify({ messages: next, language: "de" }),
       });
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) throw await apiError(r);
       const data = await r.json();
       setChatMessages([...next, { role: "assistant", content: data.message }]);
     } catch (e) {
-      setChatMessages([...next, { role: "assistant", content: String(e instanceof Error ? e.message : e) }]);
+      setChatMessages([...next, { role: "assistant", content: errorText(e) }]);
     } finally {
       setChatBusy(false);
     }
   }
 
-  async function prepareAppointment(e: FormEvent) {
+  function prepareAppointment(e: FormEvent) {
     e.preventDefault();
-    const r = await fetch(API + "/v1/actions/appointment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        service: appointmentService,
-        location: appointmentLocation || null,
-        official_booking_url: appointmentUrl || null,
-      }),
+    return guarded(setAppointmentError, async () => {
+      const r = await fetch(API + "/v1/actions/appointment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service: appointmentService,
+          location: appointmentLocation || null,
+          official_booking_url: appointmentUrl || null,
+        }),
+      });
+      if (!r.ok) throw await apiError(r);
+      setAppointmentAction(await r.json());
     });
-    if (!r.ok) throw new Error(await r.text());
-    setAppointmentAction(await r.json());
   }
 
-  async function confirmAppointment(approve: boolean) {
+  function confirmAppointment(approve: boolean) {
     if (!appointmentAction) return;
-    const r = await fetch(API + `/v1/actions/${appointmentAction.action_id}/confirm`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve, expected_version: appointmentAction.version }),
+    return guarded(setAppointmentError, async () => {
+      const r = await fetch(API + `/v1/actions/${appointmentAction.action_id}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approve, expected_version: appointmentAction.version }),
+      });
+      if (!r.ok) throw await apiError(r);
+      setAppointmentAction(await r.json());
     });
-    if (!r.ok) throw new Error(await r.text());
-    setAppointmentAction(await r.json());
   }
 
-  async function inspectAgentForm(file?: File) {
+  function inspectAgentForm(file?: File) {
     if (!file) return;
-    const fd = new FormData();
-    fd.append("file", file);
-    const r = await fetch(API + "/v1/forms/inspect", { method: "POST", body: fd });
-    if (!r.ok) throw new Error(await r.text());
-    setFormInspection(await r.json());
-    setFormAction(null);
+    return guarded(setFormError, async () => {
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const r = await fetch(API + "/v1/forms/inspect", { method: "POST", body: fd });
+        if (!r.ok) throw await apiError(r);
+        setFormInspection(await r.json());
+        setFormAction(null);
+      } finally {
+        // allow re-selecting the same file after an error
+        if (formAgentInput.current) formAgentInput.current.value = "";
+      }
+    });
   }
 
   function profileFromText(text: string) {
@@ -229,27 +363,31 @@ export default function Home() {
     return profile;
   }
 
-  async function prepareAgentForm() {
+  function prepareAgentForm() {
     if (!formInspection) return;
-    const profile = profileFromText(formProfile);
-    const r = await fetch(API + `/v1/forms/${formInspection.form_id}/agent-prepare`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profile }),
+    return guarded(setFormError, async () => {
+      const profile = profileFromText(formProfile);
+      const r = await fetch(API + `/v1/forms/${formInspection.form_id}/agent-prepare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...llmHeaders(llm) },
+        body: JSON.stringify({ profile }),
+      });
+      if (!r.ok) throw await apiError(r);
+      setFormAction(await r.json());
     });
-    if (!r.ok) throw new Error(await r.text());
-    setFormAction(await r.json());
   }
 
-  async function confirmAgentForm() {
+  function confirmAgentForm() {
     if (!formAction) return;
-    const r = await fetch(API + `/v1/actions/${formAction.action_id}/confirm`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve: true, expected_version: formAction.version }),
+    return guarded(setFormError, async () => {
+      const r = await fetch(API + `/v1/actions/${formAction.action_id}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approve: true, expected_version: formAction.version }),
+      });
+      if (!r.ok) throw await apiError(r);
+      setFormAction(await r.json());
     });
-    if (!r.ok) throw new Error(await r.text());
-    setFormAction(await r.json());
   }
 
   function reset() {
@@ -435,6 +573,15 @@ export default function Home() {
           <button type="button" className="button button-wide" onClick={() => fileInput.current?.click()}>
             Brief fotografieren
           </button>
+          <label className="state-select">
+            <span>Bundesland der Behörde (für Feiertage bei Fristen)</span>
+            <select value={bundesland} onChange={(e) => chooseBundesland(e.target.value)}>
+              <option value="">Nicht angegeben – nur bundesweite Feiertage</option>
+              {Object.entries(BUNDESLAENDER).map(([code, name]) => (
+                <option key={code} value={code}>{name}</option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             className="link-button"
@@ -538,12 +685,86 @@ export default function Home() {
       )}
 
 
+      {llmInfo && (llmInfo.byok_enabled || llmInfo.server_llm_configured) && (
+        <section className="section" id="ki-schluessel">
+          <p className="section-eyebrow">Sprachmodell</p>
+          <h2 className="section-title">Ihr eigener KI-Schlüssel.</h2>
+          <p className="section-sub">
+            {llmInfo.server_llm_configured
+              ? "Dieser Server hat bereits ein Sprachmodell. Optional können Sie stattdessen Ihr eigenes Konto nutzen."
+              : "Dieser Server hat kein eigenes Sprachmodell. Mit Ihrem API-Schlüssel nutzen Sie Chat, Erklärungen und den Formular-Agenten."}{" "}
+            Ohne Schlüssel funktionieren Fristen, Quellen und Dokumentanalyse trotzdem.
+          </p>
+          {llmInfo.byok_enabled ? (
+            <div className="agent-card llm-card">
+              <div className="agent-form agent-form-stack">
+                <label className="field">
+                  <span>Anbieter</span>
+                  <select value={llm.provider} onChange={(e) => updateLlm({ provider: e.target.value, model: "", baseUrl: "" })}>
+                    <option value="">{llmInfo.server_llm_configured ? "Sprachmodell des Servers verwenden" : "Kein Sprachmodell"}</option>
+                    {llmInfo.providers.map((p) => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                  </select>
+                </label>
+                {selectedProvider && (
+                  <>
+                    {llm.provider === "custom" && (
+                      <label className="field">
+                        <span>Endpunkt-URL (OpenAI-kompatibel, HTTPS)</span>
+                        <input value={llm.baseUrl} onChange={(e) => updateLlm({ baseUrl: e.target.value })} placeholder="https://…/v1" inputMode="url" />
+                      </label>
+                    )}
+                    <label className="field">
+                      <span>API-Schlüssel – {selectedProvider.key_hint}</span>
+                      <input type="password" autoComplete="off" spellCheck={false} value={llm.apiKey}
+                        onChange={(e) => updateLlm({ apiKey: e.target.value })} placeholder="Schlüssel einfügen" />
+                    </label>
+                    <label className="field">
+                      <span>Modell{selectedProvider.model_required ? "" : " (optional)"}</span>
+                      <input value={llm.model} onChange={(e) => updateLlm({ model: e.target.value })}
+                        placeholder={selectedProvider.default_model || "Modellname des Anbieters"} spellCheck={false} />
+                    </label>
+                    <label className="check">
+                      <input type="checkbox" checked={llm.remember} onChange={(e) => updateLlm({ remember: e.target.checked })} />
+                      <span>Auf diesem Gerät merken (sonst nur bis zum Schließen des Tabs)</span>
+                    </label>
+                    {selectedProvider.region !== "DE" && (
+                      <p className="notice">
+                        Hinweis: Ihre Fragen und Auszüge aus Dokumenten werden an {selectedProvider.label} übermittelt
+                        {REGION_LABEL[selectedProvider.region] ? ` (Verarbeitung: ${REGION_LABEL[selectedProvider.region]})` : ""}.
+                        Für Daten mit Personenbezug empfehlen wir einen Anbieter mit Verarbeitung in Deutschland.
+                      </p>
+                    )}
+                    <div className="action-buttons">
+                      <button className="button" type="button" onClick={testLlm}
+                        disabled={llmBusy || (!llm.apiKey && llm.provider !== "custom") || (selectedProvider.model_required && !llm.model.trim())}>
+                        {llmBusy ? "Prüfe …" : "Verbindung testen"}
+                      </button>
+                      <button className="link-button" type="button" onClick={clearLlm}>Schlüssel löschen</button>
+                    </div>
+                  </>
+                )}
+                {llmStatus && <p className={llmStatus.ok ? "success" : "error"} role="status">{llmStatus.text}</p>}
+                <p className="agent-muted">
+                  {ownKeyActive
+                    ? `Aktiv: Ihr Schlüssel für ${selectedProvider?.label ?? llm.provider}. `
+                    : ""}
+                  Der Schlüssel bleibt in Ihrem Browser und wird nur bei Anfragen an ein Sprachmodell mitgeschickt.
+                  Der Server speichert und protokolliert ihn nicht.
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      )}
+
       <section className="section section-grey" id="assistant-chat">
         <p className="section-eyebrow">Der Assistent</p>
         <h2 className="section-title">Schreiben. Fragen. Erledigen.</h2>
         <p className="section-sub">
-          Mit konfiguriertem Deutschland-LLM können Sie frei schreiben. Bei Behörden- und Rechtsfragen
-          werden amtliche Quellen eingebunden.
+          Mit einem Sprachmodell können Sie frei schreiben – über den Server oder mit Ihrem eigenen API-Schlüssel.
+          Bei Behörden- und Rechtsfragen werden amtliche Quellen eingebunden.
         </p>
         <div className="agent-grid">
           <div className="agent-card">
@@ -571,6 +792,7 @@ export default function Home() {
               <input value={appointmentUrl} onChange={(e) => setAppointmentUrl(e.target.value)} placeholder="Offizielle Buchungs-URL (optional)" />
               <button className="button" type="submit" disabled={!appointmentService.trim()}>Vorschau erstellen</button>
             </form>
+            {appointmentError && <p className="error" role="alert">{appointmentError}</p>}
             {appointmentAction && (
               <div className="action-preview">
                 <strong>{appointmentAction.summary}</strong>
@@ -591,6 +813,7 @@ export default function Home() {
             <p className="agent-muted">Ausfüllbares PDF hochladen. Der Formular-Agent ordnet Ihre Angaben den vorhandenen Feldern zu. Das PDF wird erst nach Bestätigung erzeugt.</p>
             <input ref={formAgentInput} className="visually-hidden" type="file" accept=".pdf,application/pdf" onChange={(e) => inspectAgentForm(e.target.files?.[0])} />
             <button className="button" type="button" onClick={() => formAgentInput.current?.click()}>Formular auswählen</button>
+            {formError && <p className="error" role="alert">{formError}</p>}
             {formInspection && (
               <div className="form-agent">
                 <p>{formInspection.fields.length} ausfüllbare Felder erkannt.</p>
