@@ -49,6 +49,14 @@ Deutschland Assistent ist ein quelloffener, evidenzorientierter Bürgerassistent
 - **Termine als Agentenaktion vorbereiten:** Nach einer expliziten Bestätigung führt der Assistent zur amtlichen Buchungsseite (nur freigegebene Behörden-Domains) oder zur Suche im Bundesportal. **Gebucht wird nicht automatisch** – das übernimmt die Person selbst oder später ein geprüfter, angeschlossener Connector.
 - **Ausfüllbare PDF-Formulare erkennen und ausfüllen**; Profildaten können per LLM auf vorhandene PDF-Felder abgebildet werden. Das fertige PDF wird erst nach Bestätigung erzeugt.
 
+### Termin beim Amt – Ende zu Ende
+
+<p align="center">
+  <img src="docs/media/termin-ende-zu-ende-v1.gif" alt="Aufnahme der echten App ohne Sprachmodell: Im Chat wird „Buche mir einen Termin beim Bürgeramt Berlin für einen neuen Personalausweis“ geschrieben. Der Assistent schlägt „Termin vorbereiten: Personalausweis beantragen“ vor; ein Klick füllt die Terminkarte aus. Eine fremde Buchungsadresse wird abgelehnt, die amtliche service.berlin.de akzeptiert. Nach Vorschau und Bestätigung erscheint „Buchungsseite öffnen“ und führt zur amtlichen Seite (im Video ein gekennzeichneter Platzhalter). Abspann: „Vorbereiten. Bestätigen. Selbst buchen.“" width="860" />
+  <br />
+  <sub>Aufnahme der echten App in 47 Sekunden · <a href="docs/media/termin-ende-zu-ende-v1.mp4">als MP4</a> · gebucht wird nicht automatisch, sondern auf der amtlichen Seite</sub>
+</p>
+
 ### So wird Ihre Frist berechnet
 
 <p align="center">
