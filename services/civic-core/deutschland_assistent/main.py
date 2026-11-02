@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
+from .appointments import BookingUrlError, bundesportal_search_url, validate_booking_url
 from .appointments import prepare_appointment as prepare_appointment_plan
 from .channels import channels_info
 from .actions import ActionStore, fill_pdf_form, inspect_pdf_form, new_action
@@ -428,7 +429,18 @@ def forms_delete(form_id: str):
 
 @app.post("/v1/actions/appointment", response_model=ActionPreview)
 def prepare_appointment(req: AppointmentPrepareRequest):
+    """Bereitet einen Termin vor. Gebucht wird nichts: Nach der Bestätigung bucht die Person selbst auf der
+    amtlichen Seite (``booking_link``) oder ein angeschlossener, freigegebener Agent übernimmt."""
     payload = req.model_dump(mode="json", exclude_none=True)
+    if req.official_booking_url:
+        try:
+            payload["official_booking_url"] = validate_booking_url(req.official_booking_url)
+        except BookingUrlError as exc:
+            raise HTTPException(422, str(exc)) from None
+        payload["booking_link"] = payload["official_booking_url"]
+    else:
+        query = " ".join(x for x in [req.service, req.location or ""] if x).strip()
+        payload["booking_link"] = bundesportal_search_url(query[:200], None)
     target = "openclaw_browser" if req.official_booking_url else "connector_required"
     preview = new_action(
         "appointment",

@@ -168,6 +168,8 @@ class AgentActionSuggestion(BaseModel):
     type: AgentActionType
     label: str
     description: str | None = None
+    # Vorbelegung für die Oberfläche, z. B. {"service": "Personalausweis beantragen"}; nie personenbezogene Daten.
+    prefill: dict[str, str] = Field(default_factory=dict)
 
 
 class ChatRequest(BaseModel):
